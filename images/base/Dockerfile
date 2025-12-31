@@ -12,6 +12,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG TARGETARCH
 ARG YQ_VERSION=v4.50.1
 ARG NODE_VERSION=22.21.1
+ARG GH_CLI_VERSION=2.83.2
 ARG GH_CLI_GPG_FINGERPRINT=2C6106201985B60E6C7AC87323F3D4EA75716059
 ARG DOCKER_GPG_FINGERPRINT=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 ARG PYENV_VERSION=v2.6.17
@@ -114,7 +115,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # GitHub CLI (gh)
 # =============================================================================
 
-# hadolint ignore=DL3008
 RUN keyring=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
     tmpdir=$(mktemp -d) && \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /tmp/githubcli-archive-keyring.gpg && \
@@ -124,7 +124,7 @@ RUN keyring=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
     chmod go+r "${keyring}" && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh="${GH_CLI_VERSION}" && \
     rm -rf /var/lib/apt/lists/* /tmp/githubcli-archive-keyring.gpg "${tmpdir}"
 
 # =============================================================================
@@ -181,7 +181,9 @@ RUN : "${TARGETARCH:?TARGETARCH is required for Node.js install}" && \
     curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" && \
     grep " ${node_dist}.tar.xz$" SHASUMS256.txt | sha256sum -c - && \
     tar -xJf "${node_dist}.tar.xz" -C /usr/local --strip-components=1 && \
-    rm -f "/tmp/${node_dist}.tar.xz" /tmp/SHASUMS256.txt
+    rm -f "/tmp/${node_dist}.tar.xz" /tmp/SHASUMS256.txt && \
+    # Update npm to fix CVE-2025-64756 (glob command injection vulnerability)
+    npm install -g npm@latest
 WORKDIR /
 
 # =============================================================================

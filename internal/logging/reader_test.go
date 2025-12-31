@@ -229,6 +229,60 @@ func TestReader_FollowWithHistory(t *testing.T) {
 	assert.NotContains(t, result, "line2\n")
 }
 
+func TestReader_Follow_PartialLines(t *testing.T) {
+	dir := t.TempDir()
+	pm := NewPathManager(dir)
+
+	// Create initial log file
+	logPath, err := pm.EnsureSessionLog("inst1", "sess1")
+	require.NoError(t, err)
+
+	logFile, err := os.Create(logPath)
+	require.NoError(t, err)
+
+	reader := NewReader(pm)
+	output := &bytes.Buffer{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Start following in a goroutine
+	done := make(chan error)
+	go func() {
+		done <- reader.Follow(ctx, "inst1", "sess1", output, 50*time.Millisecond)
+	}()
+
+	// Give it time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Write a partial line (no trailing newline)
+	logFile.WriteString("partial")
+	logFile.Sync()
+
+	// Wait a bit for the poll to pick it up
+	time.Sleep(100 * time.Millisecond)
+
+	// Complete the line
+	logFile.WriteString(" complete\n")
+	logFile.Sync()
+
+	// Write another line
+	logFile.WriteString("next line\n")
+	logFile.Sync()
+
+	// Wait for follow to finish (via context timeout)
+	err = <-done
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// Verify output contains ALL data including the partial line
+	result := output.String()
+	assert.Contains(t, result, "partial")
+	assert.Contains(t, result, "complete")
+	assert.Contains(t, result, "next line")
+
+	logFile.Close()
+}
+
 func TestReadLastNLines_LargeFile(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "large.log")

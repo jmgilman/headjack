@@ -67,15 +67,18 @@ func (r *Reader) Follow(ctx context.Context, instanceID, sessionID string, out i
 		case <-ticker.C:
 			for {
 				line, err := reader.ReadBytes('\n')
+				// Always write any data we received, even with EOF
+				if len(line) > 0 {
+					if _, werr := out.Write(line); werr != nil {
+						return fmt.Errorf("write output: %w", werr)
+					}
+				}
 				if err != nil {
 					if err == io.EOF {
 						// No more data, wait for next poll
 						break
 					}
 					return fmt.Errorf("read line: %w", err)
-				}
-				if _, err := out.Write(line); err != nil {
-					return fmt.Errorf("write output: %w", err)
 				}
 			}
 		}

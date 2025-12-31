@@ -13,127 +13,243 @@ headjack <command> [args]
 hjk <command> [args]
 ```
 
+## Core Concepts
+
+### Instances
+
+An **instance** is the combination of:
+- A git worktree (persistent)
+- A container (ephemeral, can be stopped/recreated)
+
+Each branch can have exactly one instance. The branch name is the primary identifier.
+
+### Sessions
+
+A **session** is a persistent, attachable/detachable process running within an instance. Sessions are implemented using [Zellij](https://zellij.dev/), a modern terminal multiplexer.
+
+- An instance can have zero or more sessions
+- Sessions can be shells, agent CLIs (Claude, Gemini, Codex), or other processes
+- Users can attach/detach from sessions at will
+- Multiple sessions can run concurrently within an instance
+
+Session names are auto-generated (similar to Docker container names) but can be overridden with the `--name` flag.
+
+---
+
 ## Command Structure
 
-### Instance Management
+### `run`
 
-#### `new`
-
-Create a new instance from the current repository.
+Create a new session (and instance if needed), then attach.
 
 ```
-hjk new <branch> [prompt] [flags]
+hjk run <branch> [prompt] [flags]
 ```
 
 **Arguments:**
-- `branch` (required) — Branch name for the worktree. Headjack handles creation intelligently:
-  - If the branch already has a managed worktree: error (use `resume`)
-  - If the branch exists in the repo: create worktree from existing branch
-  - If the branch does not exist: create worktree with a new branch from HEAD
+- `branch` (required) — Branch name. If an instance doesn't exist, one is created. If the branch doesn't exist in git, it's created from HEAD.
 - `prompt` (optional) — Initial prompt to pass to the agent (requires `--agent`)
 
 **Flags:**
-- `--agent <name>` — Start the specified agent instead of dropping into a shell
+- `--agent <name>` — Start the specified agent instead of a shell
+- `--name <session-name>` — Override auto-generated session name
 - `--base <image>` — Override the default base image
+- `-d, --detached` — Create session but don't attach (run in background)
 
 **Behavior:**
-1. Creates a git worktree at the configured location
-2. Spawns a new container with the worktree mounted
+1. If no instance exists for the branch:
+   - Creates a git worktree at the configured location
+   - Spawns a new container with the worktree mounted
+2. Creates a new Zellij session within the instance
 3. If `--agent` specified: starts the agent (with optional prompt)
 4. Otherwise: starts the default shell
-5. Attaches stdio to the user's terminal
+5. If `--detached`: returns immediately without attaching
+6. Otherwise: attaches stdio to the user's terminal
+
+All session output is captured to a log file regardless of attached/detached mode, enabling `hjk logs` to work.
 
 **Examples:**
 ```bash
-# Drop into shell in new instance
-hjk new feat/auth
+# New instance with shell session
+hjk run feat/auth
 
-# Start Claude Code with a prompt
-hjk new feat/auth --agent claude "Implement JWT authentication"
+# New instance with Claude agent
+hjk run feat/auth --agent claude "Implement JWT authentication"
 
-# Start agent without initial prompt
-hjk new feat/auth --agent claude
+# Additional session in existing instance
+hjk run feat/auth --agent gemini --name gemini-experiment
+
+# Shell session with custom name
+hjk run feat/auth --name debug-shell
+
+# Detached sessions (run in background)
+hjk run feat/auth --agent claude -d "Refactor the auth module"
+hjk run feat/auth --agent claude -d "Write tests for auth module"
+# Now two Claude sessions are running in parallel
 ```
 
 ---
 
-#### `resume`
+### `attach`
 
-Attach to an existing instance.
+Attach to an existing session.
 
 ```
-hjk resume <branch> [prompt] [flags]
+hjk attach [branch] [session]
 ```
 
 **Arguments:**
-- `branch` (required) — Branch name of the existing instance
-- `prompt` (optional) — Initial prompt to pass to the agent (requires `--agent`)
-
-**Flags:**
-- `--agent <name>` — Start the specified agent instead of dropping into a shell
+- `branch` (optional) — Branch name of the instance
+- `session` (optional) — Session name to attach to
 
 **Behavior:**
-1. Locates the existing worktree for the branch
-2. If no container is running: starts a new container for the worktree
-3. If `--agent` specified: starts the agent (with optional prompt)
-4. Otherwise: starts the default shell
-5. Attaches stdio to the user's terminal
 
-Multiple `resume` calls to the same instance are valid—this allows running multiple shell sessions or agents concurrently within a single instance.
+The command uses a "most recently accessed" (MRU) strategy:
+
+| Arguments | Behavior |
+|-----------|----------|
+| None | Attach to the most recently accessed session across all instances |
+| `branch` only | Attach to the most recently accessed session for that instance |
+| `branch` and `session` | Attach to the specified session |
+
+If no sessions exist for the resolved scope, the command errors with a message suggesting `hjk run`.
 
 **Examples:**
 ```bash
-# Resume into shell
-hjk resume feat/auth
+# Attach to whatever you were last working on
+hjk attach
 
-# Resume and start an agent
-hjk resume feat/auth --agent claude "Continue implementing the login flow"
+# Attach to most recent session in feat/auth
+hjk attach feat/auth
+
+# Attach to specific session
+hjk attach feat/auth claude-main
 ```
+
+**Detaching:**
+
+To detach from a session without terminating it, use the Zellij keybinding (default: `Ctrl+O, d`). This returns you to your host terminal while the session continues running.
 
 ---
 
-#### `list`
+### `ps`
 
-List instances.
+List instances or sessions.
 
 ```
-hjk list [flags]
+hjk ps [branch] [flags]
 ```
+
+**Arguments:**
+- `branch` (optional) — If provided, list sessions for this instance
 
 **Flags:**
-- `-a, --all` — List instances across all repositories (default: current repo only)
+- `-a, --all` — List across all repositories (default: current repo only)
 
 **Behavior:**
-- When run inside a git repository: lists instances for that repo
-- With `--all`: lists all managed instances across all repos
-- Shows branch name, container status, and creation time
+- No arguments: lists instances for the current repository
+- With branch: lists sessions for that instance
+- With `--all`: lists all instances across all repositories
 
-**Output format:**
+**Output formats:**
+
+Instance listing (`hjk ps`):
 ```
-BRANCH              STATUS      CREATED
-feat/auth           running     2h ago
-fix/login-bug       stopped     1d ago
-main                running     3d ago
+BRANCH              STATUS      SESSIONS    CREATED
+feat/auth           running     2           2h ago
+fix/login-bug       stopped     0           1d ago
+main                running     1           3d ago
+```
+
+Session listing (`hjk ps feat/auth`):
+```
+SESSION             TYPE        STATUS      CREATED         ACCESSED
+claude-main         claude      detached    2h ago          5m ago
+debug-shell         shell       detached    1h ago          30m ago
 ```
 
 ---
 
-#### `stop`
+### `logs`
 
-Stop a running instance's container.
+View output from a session without attaching.
+
+```
+hjk logs <branch> <session> [flags]
+```
+
+**Arguments:**
+- `branch` (required) — Branch name of the instance
+- `session` (required) — Session name
+
+**Flags:**
+- `-f, --follow` — Follow log output in real-time (like `tail -f`)
+- `-n, --lines <num>` — Number of lines to show (default: 100)
+- `--full` — Show entire log from session start
+
+**Behavior:**
+- Reads from the session's log file without attaching to the Zellij session
+- Useful for checking on detached agents without interrupting them
+- Log files are stored at `~/.local/share/headjack/logs/<instance-id>/<session-id>.log`
+
+**Examples:**
+```bash
+# View recent output
+hjk logs feat/auth happy-panda
+
+# Follow output in real-time
+hjk logs feat/auth happy-panda -f
+
+# Show last 500 lines
+hjk logs feat/auth happy-panda -n 500
+
+# Show entire log
+hjk logs feat/auth happy-panda --full
+```
+
+---
+
+### `kill`
+
+Kill a specific session.
+
+```
+hjk kill <branch>/<session>
+```
+
+**Arguments:**
+- `branch/session` (required) — The instance branch and session name, separated by `/`
+
+**Behavior:**
+- Terminates the Zellij session
+- Removes the session from the catalog
+- The instance and other sessions are unaffected
+
+**Examples:**
+```bash
+hjk kill feat/auth/debug-shell
+hjk kill main/claude-experiment
+```
+
+---
+
+### `stop`
+
+Stop an instance's container.
 
 ```
 hjk stop <branch>
 ```
 
 **Behavior:**
-- Stops the container associated with the instance
+- Terminates all sessions in the instance
+- Stops the container
 - Worktree is preserved
-- Instance can be resumed later with `resume`
+- Instance can be resumed later with `run`
 
 ---
 
-#### `rm`
+### `rm`
 
 Remove an instance entirely.
 
@@ -145,8 +261,8 @@ hjk rm <branch> [flags]
 - `-f, --force` — Skip confirmation prompt
 
 **Behavior:**
-- Stops the container if running
-- Deletes the container
+- Terminates all sessions
+- Stops and deletes the container
 - Deletes the git worktree
 - Removes the instance from the catalog
 
@@ -154,7 +270,7 @@ hjk rm <branch> [flags]
 
 ---
 
-#### `recreate`
+### `recreate`
 
 Recreate an instance's container without losing worktree state.
 
@@ -163,6 +279,7 @@ hjk recreate <branch>
 ```
 
 **Behavior:**
+- Terminates all sessions
 - Stops and deletes the existing container
 - Creates a new container with the same worktree
 - Useful when the container environment is corrupted or needs a fresh state
@@ -171,9 +288,7 @@ The worktree (and all git-tracked and untracked files) is preserved.
 
 ---
 
-### Authentication
-
-#### `auth`
+### `auth`
 
 Configure authentication for an agent CLI.
 
@@ -197,9 +312,7 @@ hjk auth gemini   # Set up Gemini CLI authentication
 
 ---
 
-### Configuration
-
-#### `config`
+### `config`
 
 View and modify configuration.
 
@@ -209,7 +322,7 @@ hjk config <key>
 hjk config <key> <value>
 ```
 
-**Subcommands/modes:**
+**Modes:**
 - No arguments: display all configuration
 - One argument: display value for key
 - Two arguments: set value for key
@@ -227,9 +340,7 @@ hjk config --edit                 # Open in editor
 
 ---
 
-### Utility
-
-#### `version`
+### `version`
 
 Display version information.
 
@@ -237,7 +348,7 @@ Display version information.
 hjk version
 ```
 
-#### `help`
+### `help`
 
 Display help for any command.
 
@@ -271,7 +382,7 @@ Following XDG Base Directory specification:
 ### Config File Format
 
 ```yaml
-# Default agent to use when --agent is specified without a value
+# Default settings
 default:
   agent: claude
   base_image: ghcr.io/headjack/base:latest
@@ -279,7 +390,6 @@ default:
 # Agent-specific settings
 agents:
   claude:
-    # Additional environment variables to pass
     env:
       CLAUDE_CODE_MAX_TURNS: "100"
   gemini:
@@ -312,13 +422,15 @@ storage:
 ├── git/
 │   └── <repo-identifier>/
 │       └── <branch-name>/        # Git worktrees
-├── catalog.json                   # Instance catalog
-└── logs/                          # Optional: agent logs
+├── catalog.json                   # Instance & session catalog
+└── logs/
+    └── <instance-id>/
+        └── <session-id>.log      # Session output logs
 ```
 
 ### Catalog Format
 
-The catalog tracks the mapping between worktrees and containers:
+The catalog tracks instances and their sessions:
 
 ```json
 {
@@ -331,11 +443,33 @@ The catalog tracks the mapping between worktrees and containers:
       "worktree": "~/.local/share/headjack/git/myproject-a1b2c3/feat/auth",
       "container_id": "container-xyz",
       "created_at": "2025-12-30T10:00:00Z",
-      "status": "running"
+      "status": "running",
+      "sessions": [
+        {
+          "id": "sess-abc",
+          "name": "claude-main",
+          "type": "claude",
+          "zellij_session": "hjk-abc123-sess-abc",
+          "created_at": "2025-12-30T10:00:00Z",
+          "last_accessed": "2025-12-30T14:30:00Z"
+        },
+        {
+          "id": "sess-def",
+          "name": "debug-shell",
+          "type": "shell",
+          "zellij_session": "hjk-abc123-sess-def",
+          "created_at": "2025-12-30T11:00:00Z",
+          "last_accessed": "2025-12-30T12:00:00Z"
+        }
+      ]
     }
   ]
 }
 ```
+
+### Session Naming
+
+Session names are auto-generated using a word-based scheme similar to Docker container names (e.g., `happy-panda`, `clever-wolf`). Users can override this with the `--name` flag on `hjk run`.
 
 ---
 
@@ -343,27 +477,45 @@ The catalog tracks the mapping between worktrees and containers:
 
 ### Branch Name as Identity
 
-Each branch can have exactly one instance. This invariant simplifies management and maps naturally to git workflows:
-
+Each branch can have exactly one instance:
 - One instance per branch (strict)
-- Branch name is the primary identifier for all commands
+- Branch name is the primary identifier for instance commands
 - Users wanting parallel experiments should create separate branches
+
+### Session Lifecycle
+
+- Sessions are managed by Zellij within the container
+- Detaching preserves the session and its running process
+- Sessions are terminated when:
+  - Explicitly killed with `hjk kill`
+  - The instance is stopped with `hjk stop`
+  - The instance is removed with `hjk rm`
+  - The container is recreated with `hjk recreate`
 
 ### Container Lifecycle
 
 - Containers are ephemeral; worktrees are persistent
-- Stopping a container preserves all worktree state
+- Stopping a container terminates all sessions but preserves worktree state
 - Recreating a container gives a fresh environment without losing work
-- Multiple terminal sessions can attach to the same instance
+
+### MRU (Most Recently Used) Tracking
+
+The `last_accessed` timestamp for a session is updated when:
+- A user attaches to the session via `hjk attach`
+- A user creates and attaches to the session via `hjk run`
+
+This enables the "attach to most recent" behavior for quick context-switching.
 
 ### Error Cases
 
-| Situation | `new` behavior | `resume` behavior |
+| Situation | `run` behavior | `attach` behavior |
 |-----------|----------------|-------------------|
-| Branch has existing instance | Error: use `resume` | Attach to instance |
-| Branch has no instance | Create new instance | Error: use `new` |
-| Container stopped, worktree exists | N/A | Start new container |
-| Not in a git repository | Error | Error |
+| Branch has no instance | Create instance + session | Error: no sessions |
+| Instance exists, no sessions | Create session | Error: no sessions |
+| Instance exists, has sessions | Create new session | Attach to MRU session |
+| Session name conflict | Error: name in use | N/A |
+| Container stopped | Start container, create session | Start container, attach to session |
+| Not in a git repository | Error | Error (unless using global MRU with `--all`) |
 
 ---
 
@@ -372,6 +524,6 @@ Each branch can have exactly one instance. This invariant simplifies management 
 These are explicitly out of scope for v1 but noted for future reference:
 
 - **`hjk exec <branch> <command>`** — Run a one-off command in an instance
-- **`hjk logs <branch>`** — View logs from an instance
 - **`hjk snapshot <branch>`** — Create a container snapshot for faster recreation
-- **Instance naming** — Allow user-defined names in addition to branch-based identity
+- **Session sharing** — Allow multiple users to attach to the same session
+- **Log rotation** — Automatic cleanup of old session logs

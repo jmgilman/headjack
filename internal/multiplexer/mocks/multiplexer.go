@@ -5,35 +5,35 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/mux"
+	"github.com/jmgilman/headjack/internal/multiplexer"
 	"sync"
 )
 
-// Ensure, that MultiplexerMock does implement mux.Multiplexer.
+// Ensure, that MultiplexerMock does implement multiplexer.Multiplexer.
 // If this is not the case, regenerate this file with moq.
-var _ mux.Multiplexer = &MultiplexerMock{}
+var _ multiplexer.Multiplexer = &MultiplexerMock{}
 
-// MultiplexerMock is a mock implementation of mux.Multiplexer.
+// MultiplexerMock is a mock implementation of multiplexer.Multiplexer.
 //
 //	func TestSomethingThatUsesMultiplexer(t *testing.T) {
 //
-//		// make and configure a mocked mux.Multiplexer
+//		// make and configure a mocked multiplexer.Multiplexer
 //		mockedMultiplexer := &MultiplexerMock{
 //			AttachSessionFunc: func(ctx context.Context, sessionName string) error {
 //				panic("mock out the AttachSession method")
 //			},
-//			CreateSessionFunc: func(ctx context.Context, opts mux.CreateSessionOpts) (*mux.Session, error) {
+//			CreateSessionFunc: func(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
 //				panic("mock out the CreateSession method")
 //			},
 //			KillSessionFunc: func(ctx context.Context, sessionName string) error {
 //				panic("mock out the KillSession method")
 //			},
-//			ListSessionsFunc: func(ctx context.Context) ([]mux.Session, error) {
+//			ListSessionsFunc: func(ctx context.Context) ([]multiplexer.Session, error) {
 //				panic("mock out the ListSessions method")
 //			},
 //		}
 //
-//		// use mockedMultiplexer in code that requires mux.Multiplexer
+//		// use mockedMultiplexer in code that requires multiplexer.Multiplexer
 //		// and then make assertions.
 //
 //	}
@@ -42,13 +42,13 @@ type MultiplexerMock struct {
 	AttachSessionFunc func(ctx context.Context, sessionName string) error
 
 	// CreateSessionFunc mocks the CreateSession method.
-	CreateSessionFunc func(ctx context.Context, opts mux.CreateSessionOpts) (*mux.Session, error)
+	CreateSessionFunc func(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error)
 
 	// KillSessionFunc mocks the KillSession method.
 	KillSessionFunc func(ctx context.Context, sessionName string) error
 
 	// ListSessionsFunc mocks the ListSessions method.
-	ListSessionsFunc func(ctx context.Context) ([]mux.Session, error)
+	ListSessionsFunc func(ctx context.Context) ([]multiplexer.Session, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -64,7 +64,7 @@ type MultiplexerMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Opts is the opts argument value.
-			Opts mux.CreateSessionOpts
+			Opts multiplexer.CreateSessionOpts
 		}
 		// KillSession holds details about calls to the KillSession method.
 		KillSession []struct {
@@ -122,13 +122,13 @@ func (mock *MultiplexerMock) AttachSessionCalls() []struct {
 }
 
 // CreateSession calls CreateSessionFunc.
-func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts mux.CreateSessionOpts) (*mux.Session, error) {
+func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
 	if mock.CreateSessionFunc == nil {
 		panic("MultiplexerMock.CreateSessionFunc: method is nil but Multiplexer.CreateSession was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Opts mux.CreateSessionOpts
+		Opts multiplexer.CreateSessionOpts
 	}{
 		Ctx:  ctx,
 		Opts: opts,
@@ -145,11 +145,11 @@ func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts mux.CreateS
 //	len(mockedMultiplexer.CreateSessionCalls())
 func (mock *MultiplexerMock) CreateSessionCalls() []struct {
 	Ctx  context.Context
-	Opts mux.CreateSessionOpts
+	Opts multiplexer.CreateSessionOpts
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Opts mux.CreateSessionOpts
+		Opts multiplexer.CreateSessionOpts
 	}
 	mock.lockCreateSession.RLock()
 	calls = mock.calls.CreateSession
@@ -194,7 +194,7 @@ func (mock *MultiplexerMock) KillSessionCalls() []struct {
 }
 
 // ListSessions calls ListSessionsFunc.
-func (mock *MultiplexerMock) ListSessions(ctx context.Context) ([]mux.Session, error) {
+func (mock *MultiplexerMock) ListSessions(ctx context.Context) ([]multiplexer.Session, error) {
 	if mock.ListSessionsFunc == nil {
 		panic("MultiplexerMock.ListSessionsFunc: method is nil but Multiplexer.ListSessions was just called")
 	}

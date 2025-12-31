@@ -1,4 +1,4 @@
-package mux
+package multiplexer
 
 import (
 	"context"
@@ -37,49 +37,60 @@ func (z *zellij) CreateSession(ctx context.Context, opts CreateSessionOpts) (*Se
 		}
 	}
 
-	// Build command arguments
-	// zellij --session <name> [options...]
-	args := []string{"--session", opts.Name}
+	// Build the zellij command for background execution
+	// We use shell to start zellij in the background (detached mode)
+	zellijCmd := fmt.Sprintf("zellij --session %s", shellEscape(opts.Name))
 
-	// Add working directory if specified
 	if opts.Cwd != "" {
-		args = append(args, "--cwd", opts.Cwd)
+		zellijCmd += fmt.Sprintf(" --cwd %s", shellEscape(opts.Cwd))
 	}
 
-	// If a command is specified, we need to create the session in detached mode
-	// and then run the command. Zellij doesn't have a direct "run command in new session" option,
-	// so we create the session and it will start with the default shell.
-	// The command will be run by the caller via container exec.
+	// Start zellij in background using shell
+	// The session will persist after the shell command returns
+	shellCmd := fmt.Sprintf("%s &", zellijCmd)
 
-	// For headjack, sessions are created inside containers, so we start zellij
-	// in the background/detached mode. The session creation happens when zellij starts.
+	result, err := z.exec.Run(ctx, exec.RunOptions{
+		Name: "sh",
+		Args: []string{"-c", shellCmd},
+	})
+	if err != nil {
+		stderr := string(result.Stderr)
+		return nil, fmt.Errorf("%w: %s", ErrCreateFailed, stderr)
+	}
 
-	// Create session - zellij will create it if it doesn't exist when we attach
-	// But for background sessions, we need to start zellij in a way that it detaches
-	// Unfortunately, zellij doesn't have a native "create and detach" command.
-	// We'll create it by starting zellij and immediately detaching.
+	// Brief wait for session to initialize
+	time.Sleep(100 * time.Millisecond)
 
-	// For now, we just prepare the session info. The actual session creation
-	// happens when AttachSession is called (zellij creates if it doesn't exist).
-	// This matches zellij's behavior where attach creates if needed.
+	// Verify session was created
+	sessions, err = z.ListSessions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("verify session created: %w", err)
+	}
 
-	return &Session{
-		ID:        opts.Name, // Zellij uses session name as ID
-		Name:      opts.Name,
-		CreatedAt: time.Now(),
-	}, nil
+	for _, s := range sessions {
+		if s.Name == opts.Name {
+			return &Session{
+				ID:        s.Name,
+				Name:      s.Name,
+				CreatedAt: time.Now(),
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%w: session not found after creation", ErrCreateFailed)
 }
 
 func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
-	// zellij attach <session-name> or zellij --session <name> (creates if not exists)
-	args := []string{"attach", sessionName, "--create"}
+	// zellij attach <session-name>
+	// Note: We don't use --create here since CreateSession handles creation
+	args := []string{"attach", sessionName}
 
 	stdinFd := int(os.Stdin.Fd())
 
 	// Check if stdin is a terminal
 	if !term.IsTerminal(stdinFd) {
 		// Fall back to non-interactive mode
-		_, err := z.exec.Run(ctx, exec.RunOptions{
+		result, err := z.exec.Run(ctx, exec.RunOptions{
 			Name:   "zellij",
 			Args:   args,
 			Stdin:  os.Stdin,
@@ -87,6 +98,10 @@ func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
 			Stderr: os.Stderr,
 		})
 		if err != nil {
+			stderr := string(result.Stderr)
+			if strings.Contains(stderr, "not found") || strings.Contains(stderr, "No session") {
+				return ErrSessionNotFound
+			}
 			return fmt.Errorf("%w: %v", ErrAttachFailed, err)
 		}
 		return nil
@@ -105,7 +120,7 @@ func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
 	defer signal.Stop(sigCh)
 
 	// Run zellij with stdio attached
-	_, err = z.exec.Run(ctx, exec.RunOptions{
+	result, err := z.exec.Run(ctx, exec.RunOptions{
 		Name:   "zellij",
 		Args:   args,
 		Stdin:  os.Stdin,
@@ -113,6 +128,13 @@ func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
 		Stderr: os.Stderr,
 	})
 	if err != nil {
+		stderr := ""
+		if result != nil {
+			stderr = string(result.Stderr)
+		}
+		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "No session") {
+			return ErrSessionNotFound
+		}
 		return fmt.Errorf("%w: %v", ErrAttachFailed, err)
 	}
 
@@ -181,4 +203,10 @@ func (z *zellij) KillSession(ctx context.Context, sessionName string) error {
 	}
 
 	return nil
+}
+
+// shellEscape escapes a string for safe use in shell commands.
+func shellEscape(s string) string {
+	// Use single quotes and escape any single quotes within
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }

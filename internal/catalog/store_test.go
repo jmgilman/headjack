@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -345,6 +346,186 @@ func TestStore_ContextCancellation(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+}
+
+func TestStore_Sessions(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("stores entry with sessions", func(t *testing.T) {
+		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
+
+		now := time.Now()
+		entry := Entry{
+			ID:        "abc123",
+			RepoID:    "myrepo",
+			Branch:    "main",
+			CreatedAt: now,
+			Status:    StatusRunning,
+			Sessions: []Session{
+				{
+					ID:            "sess-1",
+					Name:          "happy-panda",
+					Type:          SessionTypeClaude,
+					ZellijSession: "hjk-abc123-sess-1",
+					CreatedAt:     now,
+					LastAccessed:  now,
+				},
+			},
+		}
+		require.NoError(t, store.Add(ctx, entry))
+
+		got, err := store.Get(ctx, "abc123")
+		require.NoError(t, err)
+		require.Len(t, got.Sessions, 1)
+		assert.Equal(t, "sess-1", got.Sessions[0].ID)
+		assert.Equal(t, "happy-panda", got.Sessions[0].Name)
+		assert.Equal(t, SessionTypeClaude, got.Sessions[0].Type)
+		assert.Equal(t, "hjk-abc123-sess-1", got.Sessions[0].ZellijSession)
+	})
+
+	t.Run("updates entry with modified sessions", func(t *testing.T) {
+		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
+
+		now := time.Now()
+		entry := Entry{
+			ID:       "abc123",
+			RepoID:   "myrepo",
+			Branch:   "main",
+			Sessions: []Session{},
+		}
+		require.NoError(t, store.Add(ctx, entry))
+
+		// Add a session
+		entry.Sessions = append(entry.Sessions, Session{
+			ID:            "sess-1",
+			Name:          "clever-wolf",
+			Type:          SessionTypeShell,
+			ZellijSession: "hjk-abc123-sess-1",
+			CreatedAt:     now,
+			LastAccessed:  now,
+		})
+		require.NoError(t, store.Update(ctx, entry))
+
+		got, err := store.Get(ctx, "abc123")
+		require.NoError(t, err)
+		require.Len(t, got.Sessions, 1)
+		assert.Equal(t, "clever-wolf", got.Sessions[0].Name)
+		assert.Equal(t, SessionTypeShell, got.Sessions[0].Type)
+	})
+
+	t.Run("persists multiple sessions", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "catalog.json")
+		store := NewStore(path)
+
+		now := time.Now()
+		entry := Entry{
+			ID:     "abc123",
+			RepoID: "myrepo",
+			Branch: "main",
+			Sessions: []Session{
+				{ID: "sess-1", Name: "happy-panda", Type: SessionTypeClaude, CreatedAt: now, LastAccessed: now},
+				{ID: "sess-2", Name: "clever-wolf", Type: SessionTypeShell, CreatedAt: now, LastAccessed: now},
+				{ID: "sess-3", Name: "swift-eagle", Type: SessionTypeGemini, CreatedAt: now, LastAccessed: now},
+			},
+		}
+		require.NoError(t, store.Add(ctx, entry))
+
+		// Reload from disk
+		store2 := NewStore(path)
+		got, err := store2.Get(ctx, "abc123")
+		require.NoError(t, err)
+		require.Len(t, got.Sessions, 3)
+	})
+}
+
+func TestStore_Migration(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("migrates v1 catalog to v2", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "catalog.json")
+
+		// Write a v1 catalog directly (without sessions field)
+		v1Catalog := `{
+			"version": 1,
+			"entries": [
+				{
+					"id": "abc123",
+					"repo": "/path/to/repo",
+					"repo_id": "myrepo-abc123",
+					"branch": "main",
+					"worktree": "/path/to/worktree",
+					"container_id": "container-xyz",
+					"created_at": "2025-01-01T00:00:00Z",
+					"status": "running"
+				}
+			]
+		}`
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+
+		// Load with the store - should migrate automatically
+		store := NewStore(path)
+		got, err := store.Get(ctx, "abc123")
+		require.NoError(t, err)
+
+		// Sessions should be initialized to empty slice after migration
+		assert.NotNil(t, got.Sessions)
+		assert.Empty(t, got.Sessions)
+	})
+
+	t.Run("persists migrated catalog with new version", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "catalog.json")
+
+		// Write a v1 catalog
+		v1Catalog := `{
+			"version": 1,
+			"entries": [{"id": "abc123", "repo_id": "myrepo", "branch": "main", "status": "running"}]
+		}`
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+
+		// Load and modify to trigger save
+		store := NewStore(path)
+		entry, err := store.Get(ctx, "abc123")
+		require.NoError(t, err)
+
+		entry.Status = StatusStopped
+		require.NoError(t, store.Update(ctx, *entry))
+
+		// Read raw file to check version
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"version": 2`)
+	})
+
+	t.Run("handles empty v1 sessions gracefully", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "catalog.json")
+
+		// V1 catalog with null sessions (which JSON would produce for missing field)
+		v1Catalog := `{
+			"version": 1,
+			"entries": [
+				{"id": "a", "repo_id": "repo1", "branch": "main"},
+				{"id": "b", "repo_id": "repo2", "branch": "dev"}
+			]
+		}`
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+
+		store := NewStore(path)
+		entries, err := store.List(ctx, ListFilter{})
+		require.NoError(t, err)
+		require.Len(t, entries, 2)
+
+		for _, entry := range entries {
+			assert.NotNil(t, entry.Sessions, "Sessions should not be nil after migration")
+		}
+	})
+}
+
+func TestSessionType_Values(t *testing.T) {
+	// Verify session type constants have expected values
+	assert.Equal(t, SessionType("shell"), SessionTypeShell)
+	assert.Equal(t, SessionType("claude"), SessionTypeClaude)
+	assert.Equal(t, SessionType("gemini"), SessionTypeGemini)
+	assert.Equal(t, SessionType("codex"), SessionTypeCodex)
 }
 
 var _ = fmt.Sprintf // use fmt package

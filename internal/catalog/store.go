@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	lockTimeout = 5 * time.Second
-	fileMode    = 0644
-	dirMode     = 0755
+	lockTimeout    = 5 * time.Second
+	fileMode       = 0644
+	dirMode        = 0755
+	currentVersion = 2 // Bump when schema changes
 )
 
 // catalogFile represents the on-disk catalog format.
@@ -241,7 +242,7 @@ func (s *jsonStore) load(file *os.File) (*catalogFile, error) {
 
 	// Empty file - return default
 	if info.Size() == 0 {
-		return &catalogFile{Version: 1, Entries: []Entry{}}, nil
+		return &catalogFile{Version: currentVersion, Entries: []Entry{}}, nil
 	}
 
 	// Seek to beginning
@@ -254,12 +255,31 @@ func (s *jsonStore) load(file *os.File) (*catalogFile, error) {
 		return nil, fmt.Errorf("decode catalog file: %w", err)
 	}
 
+	// Migrate from older versions
+	if cf.Version < currentVersion {
+		s.migrate(&cf)
+	}
+
 	return &cf, nil
+}
+
+// migrate upgrades catalog data from older versions to the current version.
+func (s *jsonStore) migrate(cf *catalogFile) {
+	// Migration from v1 to v2: initialize Sessions field
+	if cf.Version < 2 {
+		for i := range cf.Entries {
+			if cf.Entries[i].Sessions == nil {
+				cf.Entries[i].Sessions = []Session{}
+			}
+		}
+	}
+
+	cf.Version = currentVersion
 }
 
 // save writes the catalog to disk atomically.
 func (s *jsonStore) save(cf *catalogFile) error {
-	cf.Version = 1
+	cf.Version = currentVersion
 
 	// Write to temp file
 	dir := filepath.Dir(s.path)

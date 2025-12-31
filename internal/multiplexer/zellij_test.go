@@ -129,20 +129,21 @@ func TestZellij_CreateSession(t *testing.T) {
 		assert.ErrorIs(t, err, ErrCreateFailed)
 	})
 
-	t.Run("returns ErrCreateFailed when session not created", func(t *testing.T) {
+	t.Run("returns ErrCreateFailed when session not created after retries", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
 				callCount++
-				switch callCount {
-				case 1, 3:
-					// list-sessions returns empty both times
+				if callCount == 1 {
+					// Initial list-sessions check
 					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-				case 2:
-					// shell command succeeds but session not actually created
+				}
+				if callCount == 2 {
+					// Shell command succeeds
 					return &exec.Result{ExitCode: 0}, nil
 				}
-				return &exec.Result{}, nil
+				// All retry list-sessions calls return empty (session never appears)
+				return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
 			},
 		}
 
@@ -153,6 +154,8 @@ func TestZellij_CreateSession(t *testing.T) {
 
 		assert.ErrorIs(t, err, ErrCreateFailed)
 		assert.Contains(t, err.Error(), "not found after creation")
+		// Should have: 1 initial check + 1 shell cmd + 5 retry checks = 7 calls
+		assert.Equal(t, 7, callCount)
 	})
 }
 
@@ -370,8 +373,11 @@ func TestZellij_AttachSession(t *testing.T) {
 	t.Run("returns ErrSessionNotFound when session missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+				// Write to the stderr writer (io.MultiWriter) that AttachSession provides
+				if opts.Stderr != nil {
+					opts.Stderr.Write([]byte("Session not found"))
+				}
 				return &exec.Result{
-					Stderr:   []byte("Session not found"),
 					ExitCode: 1,
 				}, errors.New("exit code 1")
 			},
@@ -386,8 +392,11 @@ func TestZellij_AttachSession(t *testing.T) {
 	t.Run("returns ErrAttachFailed on command error", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+				// Write to the stderr writer (io.MultiWriter) that AttachSession provides
+				if opts.Stderr != nil {
+					opts.Stderr.Write([]byte("attach failed"))
+				}
 				return &exec.Result{
-					Stderr:   []byte("attach failed"),
 					ExitCode: 1,
 				}, errors.New("exit code 1")
 			},

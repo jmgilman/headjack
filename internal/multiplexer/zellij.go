@@ -1,8 +1,10 @@
 package multiplexer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +14,13 @@ import (
 	"golang.org/x/term"
 
 	"github.com/jmgilman/headjack/internal/exec"
+)
+
+const (
+	// createRetryAttempts is the number of times to check for session creation.
+	createRetryAttempts = 5
+	// createRetryDelay is the delay between session creation verification attempts.
+	createRetryDelay = 100 * time.Millisecond
 )
 
 // zellij implements Multiplexer using the Zellij terminal multiplexer.
@@ -58,22 +67,24 @@ func (z *zellij) CreateSession(ctx context.Context, opts CreateSessionOpts) (*Se
 		return nil, fmt.Errorf("%w: %s", ErrCreateFailed, stderr)
 	}
 
-	// Brief wait for session to initialize
-	time.Sleep(100 * time.Millisecond)
+	// Verify session was created with retry loop
+	// Zellij may take a moment to initialize the session
+	for attempt := 0; attempt < createRetryAttempts; attempt++ {
+		time.Sleep(createRetryDelay)
 
-	// Verify session was created
-	sessions, err = z.ListSessions(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("verify session created: %w", err)
-	}
+		sessions, err = z.ListSessions(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("verify session created: %w", err)
+		}
 
-	for _, s := range sessions {
-		if s.Name == opts.Name {
-			return &Session{
-				ID:        s.Name,
-				Name:      s.Name,
-				CreatedAt: time.Now(),
-			}, nil
+		for _, s := range sessions {
+			if s.Name == opts.Name {
+				return &Session{
+					ID:        s.Name,
+					Name:      s.Name,
+					CreatedAt: time.Now(),
+				}, nil
+			}
 		}
 	}
 
@@ -87,18 +98,23 @@ func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
 
 	stdinFd := int(os.Stdin.Fd())
 
+	// Capture stderr while also streaming to os.Stderr for user visibility
+	// This allows us to detect error messages like "session not found"
+	var stderrBuf bytes.Buffer
+	stderrWriter := io.MultiWriter(os.Stderr, &stderrBuf)
+
 	// Check if stdin is a terminal
 	if !term.IsTerminal(stdinFd) {
 		// Fall back to non-interactive mode
-		result, err := z.exec.Run(ctx, exec.RunOptions{
+		_, err := z.exec.Run(ctx, exec.RunOptions{
 			Name:   "zellij",
 			Args:   args,
 			Stdin:  os.Stdin,
 			Stdout: os.Stdout,
-			Stderr: os.Stderr,
+			Stderr: stderrWriter,
 		})
 		if err != nil {
-			stderr := string(result.Stderr)
+			stderr := stderrBuf.String()
 			if strings.Contains(stderr, "not found") || strings.Contains(stderr, "No session") {
 				return ErrSessionNotFound
 			}
@@ -120,18 +136,15 @@ func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
 	defer signal.Stop(sigCh)
 
 	// Run zellij with stdio attached
-	result, err := z.exec.Run(ctx, exec.RunOptions{
+	_, err = z.exec.Run(ctx, exec.RunOptions{
 		Name:   "zellij",
 		Args:   args,
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stderr: stderrWriter,
 	})
 	if err != nil {
-		stderr := ""
-		if result != nil {
-			stderr = string(result.Stderr)
-		}
+		stderr := stderrBuf.String()
 		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "No session") {
 			return ErrSessionNotFound
 		}

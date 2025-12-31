@@ -4,41 +4,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatSessionName(t *testing.T) {
-	tests := []struct {
-		name       string
-		instanceID string
-		sessionID  string
-		expected   string
-	}{
-		{
-			name:       "basic formatting",
-			instanceID: "abc123",
-			sessionID:  "sess456",
-			expected:   "hjk-abc123-sess456",
-		},
-		{
-			name:       "short IDs",
-			instanceID: "a",
-			sessionID:  "b",
-			expected:   "hjk-a-b",
-		},
-		{
-			name:       "longer IDs",
-			instanceID: "instance-12345678",
-			sessionID:  "happy-panda",
-			expected:   "hjk-instance-12345678-happy-panda",
-		},
-	}
+	t.Run("basic formatting", func(t *testing.T) {
+		result, err := FormatSessionName("abc123", "sess456")
+		require.NoError(t, err)
+		assert.Equal(t, "hjk-abc123-sess456", result)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := FormatSessionName(tt.instanceID, tt.sessionID)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+	t.Run("short IDs", func(t *testing.T) {
+		result, err := FormatSessionName("a", "b")
+		require.NoError(t, err)
+		assert.Equal(t, "hjk-a-b", result)
+	})
+
+	t.Run("session ID with hyphens allowed", func(t *testing.T) {
+		result, err := FormatSessionName("instance", "happy-panda")
+		require.NoError(t, err)
+		assert.Equal(t, "hjk-instance-happy-panda", result)
+	})
+
+	t.Run("rejects instance ID with hyphens", func(t *testing.T) {
+		_, err := FormatSessionName("instance-123", "session")
+		assert.ErrorIs(t, err, ErrInvalidInstanceID)
+	})
+
+	t.Run("rejects instance ID with multiple hyphens", func(t *testing.T) {
+		_, err := FormatSessionName("my-instance-id", "session")
+		assert.ErrorIs(t, err, ErrInvalidInstanceID)
+	})
 }
 
 func TestParseSessionName(t *testing.T) {
@@ -121,10 +117,13 @@ func TestFormatAndParseRoundTrip(t *testing.T) {
 		{"abc123", "sess456"},
 		{"a", "b"},
 		{"instance", "session"},
+		{"inst", "happy-panda"},
 	}
 
 	for _, tc := range testCases {
-		formatted := FormatSessionName(tc.instanceID, tc.sessionID)
+		formatted, err := FormatSessionName(tc.instanceID, tc.sessionID)
+		require.NoError(t, err)
+
 		parsedInstance, parsedSession := ParseSessionName(formatted)
 
 		assert.Equal(t, tc.instanceID, parsedInstance, "instanceID mismatch for %s", formatted)

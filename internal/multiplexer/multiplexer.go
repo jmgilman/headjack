@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,10 +16,11 @@ const SessionPrefix = "hjk"
 
 // Sentinel errors for multiplexer operations.
 var (
-	ErrSessionNotFound = errors.New("session not found")
-	ErrSessionExists   = errors.New("session already exists")
-	ErrAttachFailed    = errors.New("failed to attach to session")
-	ErrCreateFailed    = errors.New("failed to create session")
+	ErrSessionNotFound    = errors.New("session not found")
+	ErrSessionExists      = errors.New("session already exists")
+	ErrAttachFailed       = errors.New("failed to attach to session")
+	ErrCreateFailed       = errors.New("failed to create session")
+	ErrInvalidInstanceID  = errors.New("instance ID cannot contain hyphens")
 )
 
 // Session represents a multiplexer session.
@@ -30,7 +32,9 @@ type Session struct {
 
 // CreateSessionOpts configures session creation.
 type CreateSessionOpts struct {
-	Name    string   // Session name (required, will be namespaced)
+	// Name is the session name (required).
+	// Callers should use FormatSessionName to create properly namespaced names.
+	Name    string
 	Command []string // Initial command to run (optional, defaults to shell)
 	Cwd     string   // Working directory (optional)
 	Env     []string // Environment variables (KEY=VALUE format)
@@ -65,8 +69,14 @@ type Multiplexer interface {
 //
 // This ensures session names are unique across instances and easily identifiable
 // as belonging to headjack.
-func FormatSessionName(instanceID, sessionID string) string {
-	return fmt.Sprintf("%s-%s-%s", SessionPrefix, instanceID, sessionID)
+//
+// The instanceID must not contain hyphens to ensure the name can be parsed
+// back with ParseSessionName. Returns an error if instanceID contains hyphens.
+func FormatSessionName(instanceID, sessionID string) (string, error) {
+	if strings.Contains(instanceID, "-") {
+		return "", ErrInvalidInstanceID
+	}
+	return fmt.Sprintf("%s-%s-%s", SessionPrefix, instanceID, sessionID), nil
 }
 
 // ParseSessionName extracts the instance ID and session ID from a namespaced session name.

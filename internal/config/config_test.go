@@ -24,6 +24,7 @@ func TestLoader_Load_CreatesDefaultIfMissing(t *testing.T) {
 	assert.Equal(t, defaultBaseImage, cfg.Default.BaseImage)
 	assert.Contains(t, cfg.Storage.Worktrees, "headjack")
 	assert.Contains(t, cfg.Storage.Catalog, "catalog.json")
+	assert.Contains(t, cfg.Storage.Logs, "logs")
 
 	// Verify file was created
 	_, err = os.Stat(loader.Path())
@@ -45,6 +46,7 @@ default:
 storage:
   worktrees: ~/custom/worktrees
   catalog: ~/custom/catalog.json
+  logs: ~/custom/logs
 agents:
   claude:
     env:
@@ -66,6 +68,7 @@ agents:
 	assert.Equal(t, "custom:latest", cfg.Default.BaseImage)
 	assert.Equal(t, filepath.Join(tmpHome, "custom", "worktrees"), cfg.Storage.Worktrees)
 	assert.Equal(t, filepath.Join(tmpHome, "custom", "catalog.json"), cfg.Storage.Catalog)
+	assert.Equal(t, filepath.Join(tmpHome, "custom", "logs"), cfg.Storage.Logs)
 
 	// Test agent env via GetAgentEnv helper
 	// Note: viper lowercases all keys
@@ -163,7 +166,7 @@ func TestConfig_Validate(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{Agent: "claude", BaseImage: "test:latest"},
 			Agents:  map[string]AgentConfig{"claude": {}},
-			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json"},
+			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		assert.NoError(t, cfg.Validate())
 	})
@@ -171,7 +174,7 @@ func TestConfig_Validate(t *testing.T) {
 	t.Run("valid config without agent", func(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{Agent: "", BaseImage: "test:latest"},
-			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json"},
+			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		assert.NoError(t, cfg.Validate())
 	})
@@ -179,7 +182,7 @@ func TestConfig_Validate(t *testing.T) {
 	t.Run("invalid default agent", func(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{Agent: "invalid", BaseImage: "test:latest"},
-			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json"},
+			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
 		assert.Error(t, err)
@@ -190,7 +193,7 @@ func TestConfig_Validate(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{BaseImage: "test:latest"},
 			Agents:  map[string]AgentConfig{"unknown": {}},
-			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json"},
+			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
 		assert.Error(t, err)
@@ -199,7 +202,7 @@ func TestConfig_Validate(t *testing.T) {
 	t.Run("missing required base_image", func(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{Agent: ""},
-			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json"},
+			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
 		assert.Error(t, err)
@@ -237,6 +240,7 @@ func TestValidateKey(t *testing.T) {
 		{"default.base_image is valid", "default.base_image", nil},
 		{"storage.worktrees is valid", "storage.worktrees", nil},
 		{"storage.catalog is valid", "storage.catalog", nil},
+		{"storage.logs is valid", "storage.logs", nil},
 		{"agents is valid", "agents", nil},
 		{"default is valid", "default", nil},
 		{"storage is valid", "storage", nil},

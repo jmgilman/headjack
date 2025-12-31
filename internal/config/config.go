@@ -66,6 +66,7 @@ type AgentConfig struct {
 type StorageConfig struct {
 	Worktrees string `mapstructure:"worktrees" validate:"required"`
 	Catalog   string `mapstructure:"catalog" validate:"required"`
+	Logs      string `mapstructure:"logs" validate:"required"`
 }
 
 // Validate checks the configuration for errors using struct tags.
@@ -134,6 +135,7 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("default.base_image", defaultBaseImage)
 	l.v.SetDefault("storage.worktrees", "~/.local/share/headjack/git")
 	l.v.SetDefault("storage.catalog", "~/.local/share/headjack/catalog.json")
+	l.v.SetDefault("storage.logs", "~/.local/share/headjack/logs")
 	l.v.SetDefault("agents.claude.env", map[string]string{"CLAUDE_CODE_MAX_TURNS": "100"})
 	l.v.SetDefault("agents.gemini.env", map[string]string{})
 	l.v.SetDefault("agents.codex.env", map[string]string{})
@@ -161,6 +163,7 @@ func (l *Loader) Load() (*Config, error) {
 	// Expand paths
 	cfg.Storage.Worktrees = l.expandPath(cfg.Storage.Worktrees)
 	cfg.Storage.Catalog = l.expandPath(cfg.Storage.Catalog)
+	cfg.Storage.Logs = l.expandPath(cfg.Storage.Logs)
 
 	return &cfg, nil
 }

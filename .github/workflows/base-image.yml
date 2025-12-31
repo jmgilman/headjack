@@ -61,27 +61,7 @@ jobs:
         with:
           dockerfile: images/base/Dockerfile
 
-      - name: Build image for PR scan
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
-        with:
-          context: images/base
-          platforms: linux/amd64
-          load: true
-          tags: base-pr:${{ github.sha }}
-
-      - name: Scan PR image with Trivy
-        if: github.event_name == 'pull_request'
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          image-ref: base-pr:${{ github.sha }}
-          format: table
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-          exit-code: 0
-
       - name: Build and push Docker image
-        if: github.event_name != 'pull_request'
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:

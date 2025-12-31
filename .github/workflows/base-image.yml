@@ -22,21 +22,23 @@ jobs:
   build:
     runs-on: warp-ubuntu-latest-x64-4x
     permissions:
-      contents: read
+      actions: read
+      contents: write
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configure WarpBuild Docker Builder
-        uses: WarpBuilds/docker-configure@v1
+        uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
         with:
           profile-name: default
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -44,7 +46,7 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -54,14 +56,58 @@ jobs:
             type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
 
+      - name: Lint Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: images/base/Dockerfile
+
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
           context: images/base
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Scan image with Trivy
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: table
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+      - name: Generate SBOM with Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          artifact-name: base-image.spdx.json
+          upload-release-assets: true
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: v3.0.3
+
+      - name: Sign image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+
+      - name: Attest SBOM with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign attest --predicate sbom.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
 
       - name: Output image digest
         if: github.event_name != 'pull_request'

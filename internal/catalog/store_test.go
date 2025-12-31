@@ -366,7 +366,7 @@ func TestStore_Sessions(t *testing.T) {
 					ID:            "sess-1",
 					Name:          "happy-panda",
 					Type:          SessionTypeClaude,
-					ZellijSession: "hjk-abc123-sess-1",
+					MuxSessionID: "hjk-abc123-sess-1",
 					CreatedAt:     now,
 					LastAccessed:  now,
 				},
@@ -380,7 +380,7 @@ func TestStore_Sessions(t *testing.T) {
 		assert.Equal(t, "sess-1", got.Sessions[0].ID)
 		assert.Equal(t, "happy-panda", got.Sessions[0].Name)
 		assert.Equal(t, SessionTypeClaude, got.Sessions[0].Type)
-		assert.Equal(t, "hjk-abc123-sess-1", got.Sessions[0].ZellijSession)
+		assert.Equal(t, "hjk-abc123-sess-1", got.Sessions[0].MuxSessionID)
 	})
 
 	t.Run("updates entry with modified sessions", func(t *testing.T) {
@@ -400,7 +400,7 @@ func TestStore_Sessions(t *testing.T) {
 			ID:            "sess-1",
 			Name:          "clever-wolf",
 			Type:          SessionTypeShell,
-			ZellijSession: "hjk-abc123-sess-1",
+			MuxSessionID: "hjk-abc123-sess-1",
 			CreatedAt:     now,
 			LastAccessed:  now,
 		})

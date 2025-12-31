@@ -36,12 +36,12 @@ const (
 
 // Session represents a persistent, attachable process running within an instance.
 type Session struct {
-	ID            string      `json:"id"`             // Unique session identifier
-	Name          string      `json:"name"`           // Human-readable name (e.g., "happy-panda")
-	Type          SessionType `json:"type"`           // Session type (shell, claude, gemini, codex)
-	ZellijSession string      `json:"zellij_session"` // Zellij session identifier
-	CreatedAt     time.Time   `json:"created_at"`     // Creation timestamp
-	LastAccessed  time.Time   `json:"last_accessed"`  // Last access timestamp (for MRU tracking)
+	ID           string      `json:"id"`             // Unique session identifier
+	Name         string      `json:"name"`           // Human-readable name (e.g., "happy-panda")
+	Type         SessionType `json:"type"`           // Session type (shell, claude, gemini, codex)
+	MuxSessionID string      `json:"mux_session_id"` // Multiplexer session identifier
+	CreatedAt    time.Time   `json:"created_at"`     // Creation timestamp
+	LastAccessed time.Time   `json:"last_accessed"`  // Last access timestamp (for MRU tracking)
 }
 
 // Entry represents a persisted instance record.

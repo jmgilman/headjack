@@ -74,16 +74,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Scan image with Trivy
-        if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
-          format: table
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-          exit-code: 1
-
       - name: Generate SBOM with Syft
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0

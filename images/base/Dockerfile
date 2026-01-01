@@ -12,7 +12,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG TARGETARCH
 ARG YQ_VERSION=v4.50.1
 ARG NODE_VERSION=22.21.1
-ARG GH_CLI_GPG_FINGERPRINT=2C6106201985B60E6C7AC87323F3D4EA75716059
+ARG GH_CLI_VERSION=2.83.2
 ARG DOCKER_GPG_FINGERPRINT=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 ARG PYENV_VERSION=v2.6.17
 ARG NODENV_VERSION=v1.6.2
@@ -112,20 +112,20 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 # =============================================================================
 # GitHub CLI (gh)
+# Install from GitHub releases to ensure we get the official pre-built binary
+# with properly versioned dependencies (fixes CVE-2024-52308, CVE-2025-66564)
 # =============================================================================
 
-# hadolint ignore=DL3008
-RUN keyring=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    tmpdir=$(mktemp -d) && \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /tmp/githubcli-archive-keyring.gpg && \
-    GNUPGHOME="${tmpdir}" gpg --batch --show-keys --with-colons /tmp/githubcli-archive-keyring.gpg | \
-        awk -F: '/^fpr:/ {print $10; exit}' | grep -qx "${GH_CLI_GPG_FINGERPRINT}" && \
-    gpg --dearmor -o "${keyring}" /tmp/githubcli-archive-keyring.gpg && \
-    chmod go+r "${keyring}" && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh && \
-    rm -rf /var/lib/apt/lists/* /tmp/githubcli-archive-keyring.gpg "${tmpdir}"
+RUN : "${TARGETARCH:?TARGETARCH is required for gh install}" && \
+    gh_archive="gh_${GH_CLI_VERSION}_linux_${TARGETARCH}.tar.gz" && \
+    gh_dir="gh_${GH_CLI_VERSION}_linux_${TARGETARCH}" && \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/${gh_archive}" -o "/tmp/${gh_archive}" && \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_checksums.txt" -o /tmp/gh_checksums.txt && \
+    gh_sha256="$(sha256sum "/tmp/${gh_archive}" | awk '{print $1}')" && \
+    grep "${gh_archive}" /tmp/gh_checksums.txt | grep -q "${gh_sha256}" && \
+    tar -xzf "/tmp/${gh_archive}" -C /tmp && \
+    install -m 0755 "/tmp/${gh_dir}/bin/gh" /usr/bin/gh && \
+    rm -rf "/tmp/${gh_archive}" /tmp/gh_checksums.txt "/tmp/${gh_dir}"
 
 # =============================================================================
 # yq (YAML processor)
@@ -181,7 +181,8 @@ RUN : "${TARGETARCH:?TARGETARCH is required for Node.js install}" && \
     curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" && \
     grep " ${node_dist}.tar.xz$" SHASUMS256.txt | sha256sum -c - && \
     tar -xJf "${node_dist}.tar.xz" -C /usr/local --strip-components=1 && \
-    rm -f "/tmp/${node_dist}.tar.xz" /tmp/SHASUMS256.txt
+    rm -f "/tmp/${node_dist}.tar.xz" /tmp/SHASUMS256.txt && \
+    npm install -g npm@latest
 WORKDIR /
 
 # =============================================================================
@@ -192,6 +193,27 @@ RUN npm install -g \
     @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
     @google/gemini-cli@${GEMINI_CLI_VERSION} \
     @openai/codex@${CODEX_CLI_VERSION}
+
+# =============================================================================
+# CVE-2025-64756 Fix: Replace vulnerable glob in all node_modules
+# The glob package has a command injection vulnerability fixed in 10.5.0+
+# This must run AFTER all npm packages are installed
+# =============================================================================
+
+RUN curl -fsSL "https://registry.npmjs.org/glob/-/glob-10.5.0.tgz" -o /tmp/glob-10.5.0.tgz && \
+    find /usr/local/lib/node_modules -type d -name "glob" -path "*/node_modules/glob" | while read -r glob_dir; do \
+        if [ -f "${glob_dir}/package.json" ]; then \
+            version=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${glob_dir}/package.json" | head -1 | grep -o '[0-9][0-9.]*'); \
+            case "$version" in \
+                10.[0-4].*|[0-9].*) \
+                    echo "Patching glob at ${glob_dir} (version ${version})"; \
+                    rm -rf "${glob_dir:?}"/*; \
+                    tar -xzf /tmp/glob-10.5.0.tgz -C "${glob_dir}" --strip-components=1; \
+                    ;; \
+            esac; \
+        fi; \
+    done && \
+    rm -f /tmp/glob-10.5.0.tgz
 
 # =============================================================================
 # Create non-root user

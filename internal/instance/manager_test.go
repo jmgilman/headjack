@@ -689,6 +689,9 @@ func TestManager_CreateSession(t *testing.T) {
 					Status: container.StatusRunning,
 				}, nil
 			},
+			ExecCommandFunc: func() []string {
+				return []string{"container", "exec"}
+			},
 		}
 		mux := &muxmocks.MultiplexerMock{
 			CreateSessionFunc: func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
@@ -735,6 +738,9 @@ func TestManager_CreateSession(t *testing.T) {
 		runtime := &containermocks.RuntimeMock{
 			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
 				return &container.Container{ID: "container-123", Status: container.StatusRunning}, nil
+			},
+			ExecCommandFunc: func() []string {
+				return []string{"container", "exec"}
 			},
 		}
 		mux := &muxmocks.MultiplexerMock{

@@ -395,3 +395,7 @@ func (p *podmanListItem) toContainer() Container {
 		CreatedAt: time.Unix(p.Created, 0),
 	}
 }
+
+func (r *podmanRuntime) ExecCommand() []string {
+	return []string{"podman", "exec"}
+}

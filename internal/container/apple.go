@@ -356,3 +356,7 @@ func (c *containerListItem) toContainer() Container {
 		Status: status,
 	}
 }
+
+func (r *appleRuntime) ExecCommand() []string {
+	return []string{"container", "exec"}
+}

@@ -118,4 +118,9 @@ type Runtime interface {
 	// Build builds an OCI image from a Dockerfile.
 	// Returns ErrBuildFailed if the build fails.
 	Build(ctx context.Context, cfg *BuildConfig) error
+
+	// ExecCommand returns the command prefix for executing commands in a container.
+	// This is used by the multiplexer to build commands that run inside containers.
+	// For example, Apple returns ["container", "exec"] and Podman returns ["podman", "exec"].
+	ExecCommand() []string
 }

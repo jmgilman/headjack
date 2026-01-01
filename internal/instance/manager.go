@@ -41,6 +41,7 @@ type containerRuntime interface {
 	Remove(ctx context.Context, id string) error
 	Get(ctx context.Context, id string) (*container.Container, error)
 	List(ctx context.Context, filter container.ListFilter) ([]container.Container, error)
+	ExecCommand() []string
 }
 
 // gitOpener is the internal interface for opening git repositories.
@@ -702,8 +703,8 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 	}
 
 	// Build the command to execute inside the container
-	// The multiplexer runs on the host, so we wrap the command with "container exec"
-	execCmd := []string{"container", "exec", "-it", "-w", "/workspace"}
+	// The multiplexer runs on the host, so we wrap the command with the runtime's exec command
+	execCmd := append(m.runtime.ExecCommand(), "-it", "-w", "/workspace")
 	for _, e := range cfg.Env {
 		execCmd = append(execCmd, "-e", e)
 	}
@@ -716,7 +717,7 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 	}
 
 	// Create multiplexer session with logging
-	// The multiplexer runs on the host, executing "container exec" to run inside the VM
+	// The multiplexer runs on the host, executing the runtime's exec command to run inside the container
 	_, err = m.mux.CreateSession(ctx, &multiplexer.CreateSessionOpts{
 		Name:    muxSessionName,
 		Command: execCmd,

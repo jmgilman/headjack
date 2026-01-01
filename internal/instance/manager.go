@@ -696,13 +696,31 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 		sessionType = catalog.SessionTypeShell
 	}
 
+	// Run agent-specific setup before starting the session
+	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType); setupErr != nil {
+		return nil, fmt.Errorf("agent setup: %w", setupErr)
+	}
+
+	// Build the command to execute inside the container
+	// The multiplexer runs on the host, so we wrap the command with "container exec"
+	execCmd := []string{"container", "exec", "-it", "-w", "/workspace"}
+	for _, e := range cfg.Env {
+		execCmd = append(execCmd, "-e", e)
+	}
+	execCmd = append(execCmd, entry.ContainerID)
+	if len(cfg.Command) > 0 {
+		execCmd = append(execCmd, cfg.Command...)
+	} else {
+		// Default to shell if no command specified
+		execCmd = append(execCmd, "/bin/bash")
+	}
+
 	// Create multiplexer session with logging
-	// Use the worktree path as cwd (host path, since zellij runs on host)
+	// The multiplexer runs on the host, executing "container exec" to run inside the VM
 	_, err = m.mux.CreateSession(ctx, &multiplexer.CreateSessionOpts{
 		Name:    muxSessionName,
-		Command: cfg.Command,
+		Command: execCmd,
 		Cwd:     entry.Worktree,
-		Env:     cfg.Env,
 		LogPath: logPath,
 	})
 	if err != nil {
@@ -739,6 +757,23 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 		CreatedAt:    now,
 		LastAccessed: now,
 	}, nil
+}
+
+// runAgentSetup performs agent-specific setup before starting a session.
+// For Claude, this creates the config file needed to skip onboarding.
+func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType) error {
+	if sessionType != catalog.SessionTypeClaude {
+		return nil
+	}
+
+	// Create ~/.claude.json with hasCompletedOnboarding to skip interactive setup.
+	// This is required for OAuth token authentication to work in headless environments.
+	// See: https://github.com/anthropics/claude-code/issues/8938
+	setupCmd := `mkdir -p ~/.claude && echo '{"hasCompletedOnboarding":true}' > ~/.claude.json`
+
+	return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		Command: []string{"sh", "-c", setupCmd},
+	})
 }
 
 // getRunningInstance retrieves an instance and verifies its container is running.

@@ -7,7 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/jmgilman/headjack/internal/auth"
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/keychain"
 )
 
 // agentDefaultSentinel is the sentinel value used when --agent flag is specified without a value.
@@ -118,7 +120,33 @@ func buildSessionConfig(cmd *cobra.Command, flags *runFlags, args []string) (*in
 		}
 	}
 
+	// Inject authentication tokens from keychain
+	if err := injectAuthToken(agent, cfg); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+// injectAuthToken retrieves the auth token for the agent and adds it to the session config.
+func injectAuthToken(agent string, cfg *instance.CreateSessionConfig) error {
+	if agent != "claude" {
+		return nil
+	}
+
+	storage := keychain.New()
+	provider := auth.NewClaudeProvider()
+
+	token, err := provider.Get(storage)
+	if err != nil {
+		if errors.Is(err, keychain.ErrNotFound) {
+			return errors.New("claude auth not configured: run 'headjack auth claude' first")
+		}
+		return fmt.Errorf("get claude token: %w", err)
+	}
+
+	cfg.Env = append(cfg.Env, "CLAUDE_CODE_OAUTH_TOKEN="+token)
+	return nil
 }
 
 func runRunCmd(cmd *cobra.Command, args []string) error {

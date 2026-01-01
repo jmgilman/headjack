@@ -15,8 +15,8 @@ var stopCmd = &cobra.Command{
 	Short: "Stop a running instance's container",
 	Long: `Stop the container associated with the specified instance.
 
-The worktree is preserved and the instance can be resumed later with 'resume'.`,
-	Example: `  headjack stop feat/auth`,
+The worktree is preserved and the instance can be resumed later with 'hjk run'.`,
+	Example: `  hjk stop feat/auth`,
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch := args[0]

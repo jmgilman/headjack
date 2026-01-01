@@ -19,8 +19,8 @@ import (
 	"github.com/jmgilman/headjack/internal/multiplexer"
 )
 
-// requiredDeps lists the external binaries that must be available.
-var requiredDeps = []string{"container", "git"}
+// baseDeps lists the external binaries that must always be available.
+var baseDeps = []string{"git"}
 
 // mgr is the instance manager, initialized in PersistentPreRunE.
 var mgr *instance.Manager
@@ -102,15 +102,33 @@ func initConfig() {
 // checkDependencies verifies that all required external binaries are available.
 func checkDependencies() error {
 	var missing []string
-	for _, dep := range requiredDeps {
+
+	// Check base dependencies
+	for _, dep := range baseDeps {
 		if _, err := exec.LookPath(dep); err != nil {
 			missing = append(missing, dep)
 		}
 	}
+
+	// Check runtime-specific dependency
+	runtimeBin := getRuntimeBinary()
+	if _, err := exec.LookPath(runtimeBin); err != nil {
+		missing = append(missing, runtimeBin)
+	}
+
 	if len(missing) > 0 {
 		return errors.New("missing required dependencies: " + formatList(missing))
 	}
 	return nil
+}
+
+// getRuntimeBinary returns the binary name for the configured runtime.
+func getRuntimeBinary() string {
+	if appConfig != nil && appConfig.Runtime.Name == "apple" {
+		return "container"
+	}
+	// Default to podman
+	return "podman"
 }
 
 // initManager initializes the instance manager with all dependencies.
@@ -138,7 +156,30 @@ func initManager(muxOverride string) error {
 
 	executor := hjexec.New()
 	store := catalog.NewStore(catalogPath)
-	runtime := container.NewAppleRuntime(executor)
+
+	// Select runtime: config > default (podman)
+	var runtime container.Runtime
+	runtimeName := "podman" // default
+	if appConfig != nil && appConfig.Runtime.Name != "" {
+		runtimeName = appConfig.Runtime.Name
+	}
+	switch runtimeName {
+	case "apple":
+		appleCfg := container.AppleConfig{}
+		if appConfig != nil {
+			appleCfg.Privileged = appConfig.Runtime.Privileged
+			appleCfg.Flags = appConfig.Runtime.Flags
+		}
+		runtime = container.NewAppleRuntime(executor, appleCfg)
+	default:
+		podmanCfg := container.PodmanConfig{}
+		if appConfig != nil {
+			podmanCfg.Privileged = appConfig.Runtime.Privileged
+			podmanCfg.Flags = appConfig.Runtime.Flags
+		}
+		runtime = container.NewPodmanRuntime(executor, podmanCfg)
+	}
+
 	opener := git.NewOpener(executor)
 
 	// Select multiplexer: CLI flag > config > default (tmux)

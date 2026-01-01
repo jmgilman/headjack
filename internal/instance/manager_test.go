@@ -1061,6 +1061,10 @@ func TestManager_AttachSession(t *testing.T) {
 				assert.Equal(t, "hjk-abc12345-sess1", sessionName)
 				return nil
 			},
+			ListSessionsFunc: func(ctx context.Context) ([]multiplexer.Session, error) {
+				// Session still exists (user detached, not exited)
+				return []multiplexer.Session{{Name: "hjk-abc12345-sess1"}}, nil
+			},
 		}
 
 		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
@@ -1087,6 +1091,48 @@ func TestManager_AttachSession(t *testing.T) {
 		err := mgr.AttachSession(ctx, "abc12345", "nonexistent")
 
 		assert.ErrorIs(t, err, ErrSessionNotFound)
+	})
+
+	t.Run("cleans up session from catalog when user exits", func(t *testing.T) {
+		oldTime := time.Now().Add(-1 * time.Hour)
+		getCalls := 0
+		updateCalls := 0
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				getCalls++
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "my-session", MuxSessionID: "hjk-abc12345-sess1", LastAccessed: oldTime},
+					},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				updateCalls++
+				if updateCalls == 2 {
+					// Second update should have removed the session
+					assert.Empty(t, entry.Sessions, "session should be removed from catalog")
+				}
+				return nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			AttachSessionFunc: func(ctx context.Context, sessionName string) error {
+				return nil
+			},
+			ListSessionsFunc: func(ctx context.Context) ([]multiplexer.Session, error) {
+				// Session no longer exists (user exited)
+				return []multiplexer.Session{}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+
+		err := mgr.AttachSession(ctx, "abc12345", "my-session")
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, getCalls, "should get entry twice (initial + cleanup)")
+		assert.Equal(t, 2, updateCalls, "should update twice (timestamp + cleanup)")
 	})
 }
 

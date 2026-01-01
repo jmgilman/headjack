@@ -9,18 +9,10 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/term"
 
 	"github.com/jmgilman/headjack/internal/exec"
-)
-
-const (
-	// createRetryAttempts is the number of times to check for session creation.
-	createRetryAttempts = 5
-	// createRetryDelay is the delay between session creation verification attempts.
-	createRetryDelay = 100 * time.Millisecond
 )
 
 // zellij implements Multiplexer using the Zellij terminal multiplexer.
@@ -33,69 +25,12 @@ func NewZellij(e exec.Executor) Multiplexer {
 	return &zellij{exec: e}
 }
 
-func (z *zellij) CreateSession(ctx context.Context, opts *CreateSessionOpts) (*Session, error) {
-	// Check if session already exists
-	sessions, err := z.ListSessions(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("check existing sessions: %w", err)
-	}
-
-	for _, s := range sessions {
-		if s.Name == opts.Name {
-			return nil, ErrSessionExists
-		}
-	}
-
-	// Build the inner command that will run in the session
-	// If LogPath is set, wrap with script to capture output
-	innerCmd := z.buildInnerCommand(opts)
-
-	// Build the zellij command for background execution
-	// We use shell to start zellij in the background (detached mode)
-	zellijCmd := "zellij --session " + shellEscape(opts.Name)
-
-	if opts.Cwd != "" {
-		zellijCmd += " --cwd " + shellEscape(opts.Cwd)
-	}
-
-	// Add the inner command after --
-	zellijCmd += " -- " + innerCmd
-
-	// Start zellij in background using shell
-	// The session will persist after the shell command returns
-	shellCmd := zellijCmd + " &"
-
-	result, err := z.exec.Run(ctx, &exec.RunOptions{
-		Name: "sh",
-		Args: []string{"-c", shellCmd},
-	})
-	if err != nil {
-		stderr := string(result.Stderr)
-		return nil, fmt.Errorf("%w: %s", ErrCreateFailed, stderr)
-	}
-
-	// Verify session was created with retry loop
-	// Zellij may take a moment to initialize the session
-	for range createRetryAttempts {
-		time.Sleep(createRetryDelay)
-
-		sessions, err = z.ListSessions(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("verify session created: %w", err)
-		}
-
-		for _, s := range sessions {
-			if s.Name == opts.Name {
-				return &Session{
-					ID:        s.Name,
-					Name:      s.Name,
-					CreatedAt: time.Now(),
-				}, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("%w: session not found after creation", ErrCreateFailed)
+func (z *zellij) CreateSession(_ context.Context, _ *CreateSessionOpts) (*Session, error) {
+	// Zellij does not support creating sessions in detached mode.
+	// Unlike tmux (which supports `tmux new-session -d`), Zellij always
+	// attempts to attach to the session it creates, requiring a TTY.
+	// There is no reliable way to create a background/detached session.
+	return nil, ErrDetachedModeNotSupported
 }
 
 func (z *zellij) AttachSession(ctx context.Context, sessionName string) error {
@@ -223,39 +158,4 @@ func (z *zellij) KillSession(ctx context.Context, sessionName string) error {
 	}
 
 	return nil
-}
-
-// buildInnerCommand constructs the command to run inside the Zellij session.
-// If LogPath is set, wraps the command with script for output capture.
-// If Command is empty, defaults to /bin/bash.
-func (z *zellij) buildInnerCommand(opts *CreateSessionOpts) string {
-	// Determine the base command
-	baseCmd := "/bin/bash"
-	if len(opts.Command) > 0 {
-		// Build command string from slice
-		var parts []string
-		for _, arg := range opts.Command {
-			parts = append(parts, shellEscape(arg))
-		}
-		baseCmd = strings.Join(parts, " ")
-	}
-
-	// If no log path, just return the base command
-	if opts.LogPath == "" {
-		return baseCmd
-	}
-
-	// Wrap with script for output capture
-	// -q: quiet mode (no start/end messages)
-	// -a: append to file
-	// Uses bash -c to run the command and keep the session alive
-	return fmt.Sprintf("script -q -a %s bash -c %s",
-		shellEscape(opts.LogPath),
-		shellEscape(baseCmd))
-}
-
-// shellEscape escapes a string for safe use in shell commands.
-func shellEscape(s string) string {
-	// Use single quotes and escape any single quotes within
-	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }

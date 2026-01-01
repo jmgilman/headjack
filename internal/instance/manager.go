@@ -928,8 +928,48 @@ func (m *Manager) AttachSession(ctx context.Context, instanceID, sessionName str
 		return fmt.Errorf("update catalog entry: %w", updateErr)
 	}
 
-	// Attach to the multiplexer session
-	return m.mux.AttachSession(ctx, session.MuxSessionID)
+	// Attach to the multiplexer session (blocks until user exits or detaches)
+	attachErr := m.mux.AttachSession(ctx, session.MuxSessionID)
+
+	// After attach returns, check if session still exists in multiplexer.
+	// If not, the user exited (not detached) so we clean up the catalog.
+	m.cleanupExitedSession(ctx, instanceID, sessionName, session.MuxSessionID)
+
+	return attachErr
+}
+
+// cleanupExitedSession removes a session from the catalog if it no longer exists in the multiplexer.
+// This handles the case where a user exits a session (vs detaching).
+func (m *Manager) cleanupExitedSession(ctx context.Context, instanceID, sessionName, muxSessionID string) {
+	sessions, err := m.mux.ListSessions(ctx)
+	if err != nil {
+		return // Best effort - don't fail if we can't list sessions
+	}
+
+	// Check if our session still exists
+	for _, s := range sessions {
+		if s.Name == muxSessionID {
+			return // Session still exists (user detached), nothing to clean up
+		}
+	}
+
+	// Session no longer exists in multiplexer - remove from catalog
+	// Re-fetch entry since it may have changed while we were attached
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		return
+	}
+
+	newSessions := make([]catalog.Session, 0, len(entry.Sessions))
+	for _, s := range entry.Sessions {
+		if s.Name != sessionName {
+			newSessions = append(newSessions, s)
+		}
+	}
+	entry.Sessions = newSessions
+
+	//nolint:errcheck // Best-effort cleanup - don't fail command if catalog update fails
+	m.catalog.Update(ctx, entry)
 }
 
 // GetMRUSession returns the most recently used session for an instance.

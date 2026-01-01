@@ -19,6 +19,7 @@ ARG NODENV_VERSION=v1.6.2
 ARG NODE_BUILD_VERSION=v5.4.22
 ARG GOENV_VERSION=2.2.34
 ARG RUSTUP_VERSION=1.28.2
+ARG ZELLIJ_VERSION=0.43.1
 ARG CLAUDE_CODE_VERSION=2.0.76
 ARG GEMINI_CLI_VERSION=0.22.5
 ARG CODEX_CLI_VERSION=0.77.0
@@ -140,6 +141,27 @@ RUN : "${TARGETARCH:?TARGETARCH is required for yq install}" && \
     grep -E "^${yq_binary}\\b" /tmp/yq_checksums | grep -q "${yq_sha256}" && \
     install -m 0755 "/tmp/${yq_binary}" /usr/local/bin/yq && \
     rm -f "/tmp/${yq_binary}" /tmp/yq_checksums
+
+# =============================================================================
+# Zellij (terminal multiplexer)
+# =============================================================================
+
+RUN : "${TARGETARCH:?TARGETARCH is required for Zellij install}" && \
+    case "${TARGETARCH}" in \
+        amd64) zellij_arch="x86_64" ;; \
+        arm64) zellij_arch="aarch64" ;; \
+        *) echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    zellij_archive="zellij-${zellij_arch}-unknown-linux-musl.tar.gz" && \
+    zellij_checksums="zellij-${zellij_arch}-unknown-linux-musl.sha256sum" && \
+    curl -fsSL "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/${zellij_archive}" -o "/tmp/${zellij_archive}" && \
+    curl -fsSL "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/${zellij_checksums}" -o "/tmp/${zellij_checksums}" && \
+    tar -xzf "/tmp/${zellij_archive}" -C /tmp && \
+    expected_sha256="$(awk '{print $1}' "/tmp/${zellij_checksums}")" && \
+    actual_sha256="$(sha256sum /tmp/zellij | awk '{print $1}')" && \
+    [ "${expected_sha256}" = "${actual_sha256}" ] || { echo "Checksum mismatch"; exit 1; } && \
+    install -m 0755 /tmp/zellij /usr/local/bin/zellij && \
+    rm -f "/tmp/${zellij_archive}" "/tmp/${zellij_checksums}" /tmp/zellij
 
 # =============================================================================
 # Docker CE

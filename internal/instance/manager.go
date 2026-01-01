@@ -14,6 +14,9 @@ import (
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/container"
 	"github.com/jmgilman/headjack/internal/git"
+	"github.com/jmgilman/headjack/internal/logging"
+	"github.com/jmgilman/headjack/internal/multiplexer"
+	"github.com/jmgilman/headjack/internal/names"
 )
 
 // containerNamePrefix is the prefix for all managed containers.
@@ -44,9 +47,18 @@ type gitOpener interface {
 	Open(ctx context.Context, path string) (git.Repository, error)
 }
 
+// sessionMultiplexer is the internal interface for multiplexer operations.
+type sessionMultiplexer interface {
+	CreateSession(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error)
+	AttachSession(ctx context.Context, sessionName string) error
+	ListSessions(ctx context.Context) ([]multiplexer.Session, error)
+	KillSession(ctx context.Context, sessionName string) error
+}
+
 // ManagerConfig configures the Manager.
 type ManagerConfig struct {
 	WorktreesDir string // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
+	LogsDir      string // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
 }
 
 // Manager orchestrates instance lifecycle operations.
@@ -54,15 +66,19 @@ type Manager struct {
 	catalog      catalogStore
 	runtime      containerRuntime
 	git          gitOpener
+	mux          sessionMultiplexer
+	logPaths     *logging.PathManager
 	worktreesDir string
 }
 
 // NewManager creates a new instance manager.
-func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, cfg ManagerConfig) *Manager {
+func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, cfg ManagerConfig) *Manager {
 	return &Manager{
 		catalog:      store,
 		runtime:      runtime,
 		git:          opener,
+		mux:          mux,
+		logPaths:     logging.NewPathManager(cfg.LogsDir),
 		worktreesDir: cfg.WorktreesDir,
 	}
 }
@@ -442,4 +458,336 @@ func catalogStatusToInstanceStatus(s catalog.Status) Status {
 	default:
 		return StatusError
 	}
+}
+
+// sessionNameExists checks if a session name already exists in the entry's sessions.
+func sessionNameExists(sessions []catalog.Session, name string) bool {
+	for i := range sessions {
+		if sessions[i].Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveSessionName generates or validates a session name.
+// If name is empty, a unique name is auto-generated.
+// If name is provided, it checks for conflicts and returns ErrSessionExists if found.
+func resolveSessionName(sessions []catalog.Session, name string) (string, error) {
+	if name == "" {
+		existsFn := func(n string) bool {
+			return sessionNameExists(sessions, n)
+		}
+		return names.GenerateUnique(existsFn, 100)
+	}
+	if sessionNameExists(sessions, name) {
+		return "", ErrSessionExists
+	}
+	return name, nil
+}
+
+// CreateSession creates a new session within an instance.
+// The session is created in detached mode within the container's multiplexer.
+// If cfg.Name is empty, a unique name is auto-generated.
+func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *CreateSessionConfig) (*Session, error) {
+	entry, err := m.getRunningInstance(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionID, err := generateID()
+	if err != nil {
+		return nil, fmt.Errorf("generate session ID: %w", err)
+	}
+
+	sessionName, err := resolveSessionName(entry.Sessions, cfg.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	muxSessionName, err := multiplexer.FormatSessionName(instanceID, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("format session name: %w", err)
+	}
+
+	// Get the log path for output capture
+	logPath, logErr := m.logPaths.EnsureSessionLog(instanceID, sessionID)
+	if logErr != nil {
+		return nil, fmt.Errorf("ensure session log: %w", logErr)
+	}
+
+	sessionType := catalog.SessionType(cfg.Type)
+	if sessionType == "" {
+		sessionType = catalog.SessionTypeShell
+	}
+
+	// Create multiplexer session with logging
+	// Use the worktree path as cwd (host path, since zellij runs on host)
+	_, err = m.mux.CreateSession(ctx, &multiplexer.CreateSessionOpts{
+		Name:    muxSessionName,
+		Command: cfg.Command,
+		Cwd:     entry.Worktree,
+		Env:     cfg.Env,
+		LogPath: logPath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create multiplexer session: %w", err)
+	}
+
+	now := time.Now()
+	catSession := catalog.Session{
+		ID:           sessionID,
+		Name:         sessionName,
+		Type:         sessionType,
+		MuxSessionID: muxSessionName,
+		CreatedAt:    now,
+		LastAccessed: now,
+	}
+
+	entry.Sessions = append(entry.Sessions, catSession)
+	if updateErr := m.catalog.Update(ctx, entry); updateErr != nil {
+		_ = m.mux.KillSession(ctx, muxSessionName) //nolint:errcheck // best-effort cleanup
+		return nil, fmt.Errorf("update catalog entry: %w", updateErr)
+	}
+
+	return &Session{
+		ID:           sessionID,
+		Name:         sessionName,
+		Type:         string(sessionType),
+		MuxSessionID: muxSessionName,
+		CreatedAt:    now,
+		LastAccessed: now,
+	}, nil
+}
+
+// getRunningInstance retrieves an instance and verifies its container is running.
+func (m *Manager) getRunningInstance(ctx context.Context, instanceID string) (*catalog.Entry, error) {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	if entry.ContainerID == "" {
+		return nil, errors.New("instance has no container")
+	}
+
+	c, err := m.runtime.Get(ctx, entry.ContainerID)
+	if err != nil {
+		return nil, fmt.Errorf("get container: %w", err)
+	}
+
+	if c.Status != container.StatusRunning {
+		return nil, ErrInstanceNotRunning
+	}
+
+	return entry, nil
+}
+
+// GetSession retrieves a session by name within an instance.
+func (m *Manager) GetSession(ctx context.Context, instanceID, sessionName string) (*Session, error) {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	for _, s := range entry.Sessions {
+		if s.Name == sessionName {
+			return &Session{
+				ID:           s.ID,
+				Name:         s.Name,
+				Type:         string(s.Type),
+				MuxSessionID: s.MuxSessionID,
+				CreatedAt:    s.CreatedAt,
+				LastAccessed: s.LastAccessed,
+			}, nil
+		}
+	}
+
+	return nil, ErrSessionNotFound
+}
+
+// ListSessions returns all sessions for an instance.
+func (m *Manager) ListSessions(ctx context.Context, instanceID string) ([]Session, error) {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	sessions := make([]Session, len(entry.Sessions))
+	for i, s := range entry.Sessions {
+		sessions[i] = Session{
+			ID:           s.ID,
+			Name:         s.Name,
+			Type:         string(s.Type),
+			MuxSessionID: s.MuxSessionID,
+			CreatedAt:    s.CreatedAt,
+			LastAccessed: s.LastAccessed,
+		}
+	}
+
+	return sessions, nil
+}
+
+// KillSession terminates a session and removes it from the catalog.
+func (m *Manager) KillSession(ctx context.Context, instanceID, sessionName string) error {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return ErrNotFound
+		}
+		return fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	// Find the session
+	var sessionIndex = -1
+	var session catalog.Session
+	for i, s := range entry.Sessions {
+		if s.Name == sessionName {
+			sessionIndex = i
+			session = s
+			break
+		}
+	}
+	if sessionIndex == -1 {
+		return ErrSessionNotFound
+	}
+
+	// Kill the multiplexer session (best-effort)
+	if killErr := m.mux.KillSession(ctx, session.MuxSessionID); killErr != nil {
+		// Only return error if it's not "session not found" (already dead)
+		if !errors.Is(killErr, multiplexer.ErrSessionNotFound) {
+			return fmt.Errorf("kill multiplexer session: %w", killErr)
+		}
+	}
+
+	// Remove session log (best-effort)
+	_ = m.logPaths.RemoveSessionLog(instanceID, session.ID) //nolint:errcheck // best-effort cleanup
+
+	// Remove session from entry and persist
+	entry.Sessions = append(entry.Sessions[:sessionIndex], entry.Sessions[sessionIndex+1:]...)
+	if updateErr := m.catalog.Update(ctx, entry); updateErr != nil {
+		return fmt.Errorf("update catalog entry: %w", updateErr)
+	}
+
+	return nil
+}
+
+// AttachSession attaches to an existing session, updating the last accessed timestamp.
+// This is a blocking operation that takes over the terminal.
+func (m *Manager) AttachSession(ctx context.Context, instanceID, sessionName string) error {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return ErrNotFound
+		}
+		return fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	// Find the session
+	var sessionIndex = -1
+	var session catalog.Session
+	for i, s := range entry.Sessions {
+		if s.Name == sessionName {
+			sessionIndex = i
+			session = s
+			break
+		}
+	}
+	if sessionIndex == -1 {
+		return ErrSessionNotFound
+	}
+
+	// Update last accessed timestamp
+	entry.Sessions[sessionIndex].LastAccessed = time.Now()
+	if updateErr := m.catalog.Update(ctx, entry); updateErr != nil {
+		return fmt.Errorf("update catalog entry: %w", updateErr)
+	}
+
+	// Attach to the multiplexer session
+	return m.mux.AttachSession(ctx, session.MuxSessionID)
+}
+
+// GetMRUSession returns the most recently used session for an instance.
+func (m *Manager) GetMRUSession(ctx context.Context, instanceID string) (*Session, error) {
+	entry, err := m.catalog.Get(ctx, instanceID)
+	if err != nil {
+		if err == catalog.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get catalog entry: %w", err)
+	}
+
+	if len(entry.Sessions) == 0 {
+		return nil, ErrNoSessionsAvailable
+	}
+
+	// Find the session with the most recent LastAccessed timestamp
+	mru := &entry.Sessions[0]
+	for i := range entry.Sessions {
+		if entry.Sessions[i].LastAccessed.After(mru.LastAccessed) {
+			mru = &entry.Sessions[i]
+		}
+	}
+
+	return &Session{
+		ID:           mru.ID,
+		Name:         mru.Name,
+		Type:         string(mru.Type),
+		MuxSessionID: mru.MuxSessionID,
+		CreatedAt:    mru.CreatedAt,
+		LastAccessed: mru.LastAccessed,
+	}, nil
+}
+
+// GlobalMRUSession represents a session with its instance context.
+type GlobalMRUSession struct {
+	InstanceID string
+	Session    Session
+}
+
+// GetGlobalMRUSession returns the most recently used session across all instances.
+func (m *Manager) GetGlobalMRUSession(ctx context.Context) (*GlobalMRUSession, error) {
+	entries, err := m.catalog.List(ctx, catalog.ListFilter{})
+	if err != nil {
+		return nil, fmt.Errorf("list catalog entries: %w", err)
+	}
+
+	var globalMRU *GlobalMRUSession
+	var latestAccessed time.Time
+
+	for i := range entries {
+		entry := &entries[i]
+		for j := range entry.Sessions {
+			s := &entry.Sessions[j]
+			if globalMRU == nil || s.LastAccessed.After(latestAccessed) {
+				latestAccessed = s.LastAccessed
+				globalMRU = &GlobalMRUSession{
+					InstanceID: entry.ID,
+					Session: Session{
+						ID:           s.ID,
+						Name:         s.Name,
+						Type:         string(s.Type),
+						MuxSessionID: s.MuxSessionID,
+						CreatedAt:    s.CreatedAt,
+						LastAccessed: s.LastAccessed,
+					},
+				}
+			}
+		}
+	}
+
+	if globalMRU == nil {
+		return nil, ErrNoSessionsAvailable
+	}
+
+	return globalMRU, nil
 }

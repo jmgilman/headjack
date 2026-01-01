@@ -16,11 +16,12 @@ const SessionPrefix = "hjk"
 
 // Sentinel errors for multiplexer operations.
 var (
-	ErrSessionNotFound   = errors.New("session not found")
-	ErrSessionExists     = errors.New("session already exists")
-	ErrAttachFailed      = errors.New("failed to attach to session")
-	ErrCreateFailed      = errors.New("failed to create session")
-	ErrInvalidInstanceID = errors.New("instance ID cannot contain hyphens")
+	ErrSessionNotFound          = errors.New("session not found")
+	ErrSessionExists            = errors.New("session already exists")
+	ErrAttachFailed             = errors.New("failed to attach to session")
+	ErrCreateFailed             = errors.New("failed to create session")
+	ErrInvalidInstanceID        = errors.New("instance ID cannot contain hyphens")
+	ErrDetachedModeNotSupported = errors.New("detached session creation not supported by this backend")
 )
 
 // Session represents a multiplexer session.
@@ -38,6 +39,7 @@ type CreateSessionOpts struct {
 	Command []string // Initial command to run (optional, defaults to shell)
 	Cwd     string   // Working directory (optional)
 	Env     []string // Environment variables (KEY=VALUE format)
+	LogPath string   // Path to log file for capturing session output (optional)
 }
 
 // Multiplexer provides terminal multiplexer operations.

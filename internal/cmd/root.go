@@ -16,6 +16,7 @@ import (
 	hjexec "github.com/jmgilman/headjack/internal/exec"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/multiplexer"
 )
 
 // requiredDeps lists the external binaries that must be available.
@@ -105,11 +106,13 @@ func checkDependencies() error {
 func initManager() error {
 	var worktreesDir string
 	var catalogPath string
+	var logsDir string
 
 	if appConfig != nil {
 		// Use paths from config (already expanded)
 		worktreesDir = appConfig.Storage.Worktrees
 		catalogPath = appConfig.Storage.Catalog
+		logsDir = appConfig.Storage.Logs
 	} else {
 		// Fallback to defaults
 		home, err := os.UserHomeDir()
@@ -118,15 +121,18 @@ func initManager() error {
 		}
 		worktreesDir = filepath.Join(home, ".local", "share", "headjack", "git")
 		catalogPath = filepath.Join(home, ".local", "share", "headjack", "catalog.json")
+		logsDir = filepath.Join(home, ".local", "share", "headjack", "logs")
 	}
 
 	executor := hjexec.New()
 	store := catalog.NewStore(catalogPath)
 	runtime := container.NewAppleRuntime(executor)
 	opener := git.NewOpener(executor)
+	mux := multiplexer.NewZellij(executor)
 
-	mgr = instance.NewManager(store, runtime, opener, instance.ManagerConfig{
+	mgr = instance.NewManager(store, runtime, opener, mux, instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
+		LogsDir:      logsDir,
 	})
 
 	return nil

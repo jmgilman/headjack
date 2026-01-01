@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	containermocks "github.com/jmgilman/headjack/internal/container/mocks"
 	"github.com/jmgilman/headjack/internal/git"
 	gitmocks "github.com/jmgilman/headjack/internal/git/mocks"
+	"github.com/jmgilman/headjack/internal/multiplexer"
+	muxmocks "github.com/jmgilman/headjack/internal/multiplexer/mocks"
 )
 
 // Test constants for repeated values.
@@ -24,7 +27,7 @@ const (
 )
 
 func TestNewManager(t *testing.T) {
-	mgr := NewManager(nil, nil, nil, ManagerConfig{WorktreesDir: "/data/worktrees"})
+	mgr := NewManager(nil, nil, nil, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 	require.NotNil(t, mgr)
 	assert.Equal(t, "/data/worktrees", mgr.worktreesDir)
@@ -68,7 +71,7 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
+		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 		inst, err := mgr.Create(ctx, "/path/to/repo", CreateConfig{
 			Branch: "feature/auth",
@@ -107,7 +110,7 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
+		mgr := NewManager(store, nil, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
@@ -139,7 +142,7 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
+		mgr := NewManager(store, nil, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
@@ -182,7 +185,7 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
+		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
@@ -219,7 +222,7 @@ func TestManager_Get(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		inst, err := mgr.Get(ctx, "abc123")
 
@@ -236,7 +239,7 @@ func TestManager_Get(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
 
 		_, err := mgr.Get(ctx, "nonexistent")
 
@@ -276,7 +279,7 @@ func TestManager_GetByBranch(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, ManagerConfig{})
+		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{})
 
 		inst, err := mgr.GetByBranch(ctx, "/path/to/repo", "main")
 
@@ -300,7 +303,7 @@ func TestManager_GetByBranch(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, ManagerConfig{})
+		mgr := NewManager(store, nil, opener, nil, ManagerConfig{})
 
 		_, err := mgr.GetByBranch(ctx, "/path/to/repo", "nonexistent")
 
@@ -329,7 +332,7 @@ func TestManager_List(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		instances, err := mgr.List(ctx, ListFilter{})
 
@@ -352,7 +355,7 @@ func TestManager_List(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		instances, err := mgr.List(ctx, ListFilter{Status: StatusRunning})
 
@@ -385,7 +388,7 @@ func TestManager_Stop(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		err := mgr.Stop(ctx, "abc123")
 
@@ -401,7 +404,7 @@ func TestManager_Stop(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
 
 		err := mgr.Stop(ctx, "nonexistent")
 
@@ -445,7 +448,7 @@ func TestManager_Remove(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, ManagerConfig{})
+		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{})
 
 		err := mgr.Remove(ctx, "abc123")
 
@@ -463,7 +466,7 @@ func TestManager_Remove(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
 
 		err := mgr.Remove(ctx, "nonexistent")
 
@@ -508,7 +511,7 @@ func TestManager_Recreate(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		inst, err := mgr.Recreate(ctx, "abc123", "newimage:v2")
 
@@ -532,7 +535,7 @@ func TestManager_Recreate(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
 
 		_, err := mgr.Recreate(ctx, "nonexistent", "image")
 
@@ -566,7 +569,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{
 			Command: []string{"bash", "-c", "echo hello"},
@@ -598,7 +601,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{})
 
@@ -623,7 +626,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{})
 
@@ -653,4 +656,569 @@ func TestSanitizeBranch(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestManager_CreateSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("creates session successfully", func(t *testing.T) {
+		logsDir := t.TempDir()
+		worktreeDir := t.TempDir()
+
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:          "abc12345", // 8 chars, no hyphens
+					ContainerID: "container-123",
+					Worktree:    worktreeDir,
+					Sessions:    []catalog.Session{},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				require.Len(t, entry.Sessions, 1)
+				assert.Equal(t, catalog.SessionTypeShell, entry.Sessions[0].Type)
+				assert.NotEmpty(t, entry.Sessions[0].ID)
+				assert.NotEmpty(t, entry.Sessions[0].Name)
+				return nil
+			},
+		}
+		runtime := &containermocks.RuntimeMock{
+			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
+				return &container.Container{
+					ID:     "container-123",
+					Status: container.StatusRunning,
+				}, nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			CreateSessionFunc: func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
+				assert.Contains(t, opts.Name, "hjk-abc12345-")
+				assert.Equal(t, worktreeDir, opts.Cwd)
+				assert.NotEmpty(t, opts.LogPath, "LogPath should be set for output capture")
+				assert.Contains(t, opts.LogPath, logsDir)
+				return &multiplexer.Session{Name: opts.Name}, nil
+			},
+		}
+
+		mgr := NewManager(store, runtime, nil, mux, ManagerConfig{LogsDir: logsDir})
+
+		session, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{})
+
+		require.NoError(t, err)
+		require.NotNil(t, session)
+		assert.NotEmpty(t, session.ID)
+		assert.NotEmpty(t, session.Name)
+		assert.Equal(t, "shell", session.Type)
+		require.Len(t, mux.CreateSessionCalls(), 1)
+		require.Len(t, store.UpdateCalls(), 1)
+	})
+
+	t.Run("creates session with custom name", func(t *testing.T) {
+		logsDir := t.TempDir()
+		worktreeDir := t.TempDir()
+
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:          "abc12345",
+					ContainerID: "container-123",
+					Worktree:    worktreeDir,
+					Sessions:    []catalog.Session{},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				require.Len(t, entry.Sessions, 1)
+				assert.Equal(t, "my-session", entry.Sessions[0].Name)
+				return nil
+			},
+		}
+		runtime := &containermocks.RuntimeMock{
+			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
+				return &container.Container{ID: "container-123", Status: container.StatusRunning}, nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			CreateSessionFunc: func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
+				return &multiplexer.Session{Name: opts.Name}, nil
+			},
+		}
+
+		mgr := NewManager(store, runtime, nil, mux, ManagerConfig{LogsDir: logsDir})
+
+		session, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{Name: "my-session"})
+
+		require.NoError(t, err)
+		assert.Equal(t, "my-session", session.Name)
+	})
+
+	t.Run("returns ErrSessionExists for duplicate name", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:          "abc12345",
+					ContainerID: "container-123",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "existing-session"},
+					},
+				}, nil
+			},
+		}
+		runtime := &containermocks.RuntimeMock{
+			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
+				return &container.Container{ID: "container-123", Status: container.StatusRunning}, nil
+			},
+		}
+
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+
+		_, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{Name: "existing-session"})
+
+		assert.ErrorIs(t, err, ErrSessionExists)
+	})
+
+	t.Run("returns ErrInstanceNotRunning for stopped container", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:          "abc12345",
+					ContainerID: "container-123",
+					Sessions:    []catalog.Session{},
+				}, nil
+			},
+		}
+		runtime := &containermocks.RuntimeMock{
+			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
+				return &container.Container{ID: "container-123", Status: container.StatusStopped}, nil
+			},
+		}
+
+		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+
+		_, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{})
+
+		assert.ErrorIs(t, err, ErrInstanceNotRunning)
+	})
+
+	t.Run("returns ErrNotFound for missing instance", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return nil, catalog.ErrNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.CreateSession(ctx, "nonexistent", &CreateSessionConfig{})
+
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestManager_GetSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns session by name", func(t *testing.T) {
+		now := time.Now()
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "first-session", Type: catalog.SessionTypeShell, CreatedAt: now, LastAccessed: now},
+						{ID: "sess2", Name: "second-session", Type: catalog.SessionTypeClaude, CreatedAt: now, LastAccessed: now},
+					},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		session, err := mgr.GetSession(ctx, "abc12345", "second-session")
+
+		require.NoError(t, err)
+		assert.Equal(t, "sess2", session.ID)
+		assert.Equal(t, "second-session", session.Name)
+		assert.Equal(t, "claude", session.Type)
+	})
+
+	t.Run("returns ErrSessionNotFound for missing session", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:       "abc12345",
+					Sessions: []catalog.Session{},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetSession(ctx, "abc12345", "nonexistent")
+
+		assert.ErrorIs(t, err, ErrSessionNotFound)
+	})
+
+	t.Run("returns ErrNotFound for missing instance", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return nil, catalog.ErrNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetSession(ctx, "nonexistent", "any")
+
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestManager_ListSessions(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns all sessions for instance", func(t *testing.T) {
+		now := time.Now()
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "first", Type: catalog.SessionTypeShell, CreatedAt: now, LastAccessed: now},
+						{ID: "sess2", Name: "second", Type: catalog.SessionTypeClaude, CreatedAt: now, LastAccessed: now},
+					},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		sessions, err := mgr.ListSessions(ctx, "abc12345")
+
+		require.NoError(t, err)
+		require.Len(t, sessions, 2)
+		assert.Equal(t, "first", sessions[0].Name)
+		assert.Equal(t, "second", sessions[1].Name)
+	})
+
+	t.Run("returns empty slice for instance with no sessions", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:       "abc12345",
+					Sessions: []catalog.Session{},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		sessions, err := mgr.ListSessions(ctx, "abc12345")
+
+		require.NoError(t, err)
+		assert.Empty(t, sessions)
+	})
+
+	t.Run("returns ErrNotFound for missing instance", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return nil, catalog.ErrNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.ListSessions(ctx, "nonexistent")
+
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestManager_KillSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("kills session and removes from catalog", func(t *testing.T) {
+		logsDir := t.TempDir()
+		// Create a mock log file
+		sessLogPath := logsDir + "/abc12345/sess1.log"
+		require.NoError(t, os.MkdirAll(logsDir+"/abc12345", 0o750))
+		require.NoError(t, os.WriteFile(sessLogPath, []byte("log content"), 0o600))
+
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "my-session", MuxSessionID: "hjk-abc12345-sess1"},
+					},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				assert.Empty(t, entry.Sessions)
+				return nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			KillSessionFunc: func(ctx context.Context, sessionName string) error {
+				assert.Equal(t, "hjk-abc12345-sess1", sessionName)
+				return nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, mux, ManagerConfig{LogsDir: logsDir})
+
+		err := mgr.KillSession(ctx, "abc12345", "my-session")
+
+		require.NoError(t, err)
+		require.Len(t, mux.KillSessionCalls(), 1)
+		require.Len(t, store.UpdateCalls(), 1)
+		// Verify log file was removed
+		_, statErr := os.Stat(sessLogPath)
+		assert.True(t, os.IsNotExist(statErr))
+	})
+
+	t.Run("succeeds even if multiplexer session already dead", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "my-session", MuxSessionID: "hjk-abc12345-sess1"},
+					},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				return nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			KillSessionFunc: func(ctx context.Context, sessionName string) error {
+				return multiplexer.ErrSessionNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+
+		err := mgr.KillSession(ctx, "abc12345", "my-session")
+
+		require.NoError(t, err)
+	})
+
+	t.Run("returns ErrSessionNotFound for missing session", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:       "abc12345",
+					Sessions: []catalog.Session{},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		err := mgr.KillSession(ctx, "abc12345", "nonexistent")
+
+		assert.ErrorIs(t, err, ErrSessionNotFound)
+	})
+
+	t.Run("returns ErrNotFound for missing instance", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return nil, catalog.ErrNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		err := mgr.KillSession(ctx, "nonexistent", "any")
+
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestManager_AttachSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("attaches to session and updates last accessed", func(t *testing.T) {
+		oldTime := time.Now().Add(-1 * time.Hour)
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "my-session", MuxSessionID: "hjk-abc12345-sess1", LastAccessed: oldTime},
+					},
+				}, nil
+			},
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
+				require.Len(t, entry.Sessions, 1)
+				// LastAccessed should be updated to a recent time
+				assert.True(t, entry.Sessions[0].LastAccessed.After(oldTime))
+				return nil
+			},
+		}
+		mux := &muxmocks.MultiplexerMock{
+			AttachSessionFunc: func(ctx context.Context, sessionName string) error {
+				assert.Equal(t, "hjk-abc12345-sess1", sessionName)
+				return nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+
+		err := mgr.AttachSession(ctx, "abc12345", "my-session")
+
+		require.NoError(t, err)
+		require.Len(t, mux.AttachSessionCalls(), 1)
+		require.Len(t, store.UpdateCalls(), 1)
+	})
+
+	t.Run("returns ErrSessionNotFound for missing session", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:       "abc12345",
+					Sessions: []catalog.Session{},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		err := mgr.AttachSession(ctx, "abc12345", "nonexistent")
+
+		assert.ErrorIs(t, err, ErrSessionNotFound)
+	})
+}
+
+func TestManager_GetMRUSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns most recently accessed session", func(t *testing.T) {
+		oldTime := time.Now().Add(-2 * time.Hour)
+		recentTime := time.Now().Add(-1 * time.Minute)
+
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID: "abc12345",
+					Sessions: []catalog.Session{
+						{ID: "sess1", Name: "old-session", LastAccessed: oldTime},
+						{ID: "sess2", Name: "recent-session", LastAccessed: recentTime},
+						{ID: "sess3", Name: "older-session", LastAccessed: oldTime.Add(-time.Hour)},
+					},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		session, err := mgr.GetMRUSession(ctx, "abc12345")
+
+		require.NoError(t, err)
+		assert.Equal(t, "recent-session", session.Name)
+	})
+
+	t.Run("returns ErrNoSessionsAvailable for instance with no sessions", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return &catalog.Entry{
+					ID:       "abc12345",
+					Sessions: []catalog.Session{},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetMRUSession(ctx, "abc12345")
+
+		assert.ErrorIs(t, err, ErrNoSessionsAvailable)
+	})
+
+	t.Run("returns ErrNotFound for missing instance", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
+				return nil, catalog.ErrNotFound
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetMRUSession(ctx, "nonexistent")
+
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func TestManager_GetGlobalMRUSession(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns most recently accessed session across all instances", func(t *testing.T) {
+		oldTime := time.Now().Add(-2 * time.Hour)
+		recentTime := time.Now().Add(-1 * time.Minute)
+
+		store := &catalogmocks.StoreMock{
+			ListFunc: func(ctx context.Context, filter catalog.ListFilter) ([]catalog.Entry, error) {
+				return []catalog.Entry{
+					{
+						ID: "inst1",
+						Sessions: []catalog.Session{
+							{ID: "sess1", Name: "old-session", LastAccessed: oldTime},
+						},
+					},
+					{
+						ID: "inst2",
+						Sessions: []catalog.Session{
+							{ID: "sess2", Name: "recent-session", LastAccessed: recentTime},
+						},
+					},
+					{
+						ID: "inst3",
+						Sessions: []catalog.Session{
+							{ID: "sess3", Name: "older-session", LastAccessed: oldTime.Add(-time.Hour)},
+						},
+					},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		result, err := mgr.GetGlobalMRUSession(ctx)
+
+		require.NoError(t, err)
+		assert.Equal(t, "inst2", result.InstanceID)
+		assert.Equal(t, "recent-session", result.Session.Name)
+	})
+
+	t.Run("returns ErrNoSessionsAvailable when no sessions exist", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			ListFunc: func(ctx context.Context, filter catalog.ListFilter) ([]catalog.Entry, error) {
+				return []catalog.Entry{
+					{ID: "inst1", Sessions: []catalog.Session{}},
+					{ID: "inst2", Sessions: []catalog.Session{}},
+				}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetGlobalMRUSession(ctx)
+
+		assert.ErrorIs(t, err, ErrNoSessionsAvailable)
+	})
+
+	t.Run("returns ErrNoSessionsAvailable when no instances exist", func(t *testing.T) {
+		store := &catalogmocks.StoreMock{
+			ListFunc: func(ctx context.Context, filter catalog.ListFilter) ([]catalog.Entry, error) {
+				return []catalog.Entry{}, nil
+			},
+		}
+
+		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+
+		_, err := mgr.GetGlobalMRUSession(ctx)
+
+		assert.ErrorIs(t, err, ErrNoSessionsAvailable)
+	})
 }

@@ -22,139 +22,16 @@ func TestNewZellij(t *testing.T) {
 func TestZellij_CreateSession(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("creates session successfully", func(t *testing.T) {
-		callCount := 0
-		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				callCount++
-				switch callCount {
-				case 1:
-					// First list-sessions call - no sessions exist
-					assert.Equal(t, "zellij", opts.Name)
-					assert.Equal(t, []string{"list-sessions"}, opts.Args)
-					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-				case 2:
-					// Shell command to create session in background
-					assert.Equal(t, "sh", opts.Name)
-					assert.Contains(t, opts.Args[1], "zellij --session 'test-session'")
-					assert.Contains(t, opts.Args[1], "&")
-					return &exec.Result{ExitCode: 0}, nil
-				case 3:
-					// Verify list-sessions call - session now exists
-					return &exec.Result{Stdout: []byte("test-session\n"), ExitCode: 0}, nil
-				}
-				return &exec.Result{}, nil
-			},
-		}
-
-		z := NewZellij(mockExec)
-		session, err := z.CreateSession(ctx, &CreateSessionOpts{
-			Name: "test-session",
-		})
-
-		require.NoError(t, err)
-		assert.Equal(t, "test-session", session.ID)
-		assert.Equal(t, "test-session", session.Name)
-		assert.False(t, session.CreatedAt.IsZero())
-		assert.Equal(t, 3, callCount)
-	})
-
-	t.Run("creates session with cwd", func(t *testing.T) {
-		callCount := 0
-		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				callCount++
-				switch callCount {
-				case 1:
-					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-				case 2:
-					assert.Contains(t, opts.Args[1], "--cwd '/workspace'")
-					return &exec.Result{ExitCode: 0}, nil
-				case 3:
-					return &exec.Result{Stdout: []byte("my-session\n"), ExitCode: 0}, nil
-				}
-				return &exec.Result{}, nil
-			},
-		}
-
-		z := NewZellij(mockExec)
-		_, err := z.CreateSession(ctx, &CreateSessionOpts{
-			Name: "my-session",
-			Cwd:  "/workspace",
-		})
-
-		require.NoError(t, err)
-	})
-
-	t.Run("returns ErrSessionExists when session exists", func(t *testing.T) {
-		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				// list-sessions returns existing session
-				return &exec.Result{
-					Stdout:   []byte("test-session [Created ...]\nother-session\n"),
-					ExitCode: 0,
-				}, nil
-			},
-		}
+	t.Run("returns ErrDetachedModeNotSupported", func(t *testing.T) {
+		// Zellij does not support detached session creation
+		mockExec := &mocks.ExecutorMock{}
 
 		z := NewZellij(mockExec)
 		_, err := z.CreateSession(ctx, &CreateSessionOpts{
 			Name: "test-session",
 		})
 
-		require.ErrorIs(t, err, ErrSessionExists)
-	})
-
-	t.Run("returns ErrCreateFailed when shell command fails", func(t *testing.T) {
-		callCount := 0
-		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				callCount++
-				if callCount == 1 {
-					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-				}
-				return &exec.Result{
-					Stderr:   []byte("zellij: error"),
-					ExitCode: 1,
-				}, errors.New("exit code 1")
-			},
-		}
-
-		z := NewZellij(mockExec)
-		_, err := z.CreateSession(ctx, &CreateSessionOpts{
-			Name: "test-session",
-		})
-
-		require.ErrorIs(t, err, ErrCreateFailed)
-	})
-
-	t.Run("returns ErrCreateFailed when session not created after retries", func(t *testing.T) {
-		callCount := 0
-		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				callCount++
-				if callCount == 1 {
-					// Initial list-sessions check
-					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-				}
-				if callCount == 2 {
-					// Shell command succeeds
-					return &exec.Result{ExitCode: 0}, nil
-				}
-				// All retry list-sessions calls return empty (session never appears)
-				return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
-			},
-		}
-
-		z := NewZellij(mockExec)
-		_, err := z.CreateSession(ctx, &CreateSessionOpts{
-			Name: "test-session",
-		})
-
-		require.ErrorIs(t, err, ErrCreateFailed)
-		assert.Contains(t, err.Error(), "not found after creation")
-		// Should have: 1 initial check + 1 shell cmd + 5 retry checks = 7 calls
-		assert.Equal(t, 7, callCount)
+		require.ErrorIs(t, err, ErrDetachedModeNotSupported)
 	})
 }
 
@@ -406,24 +283,4 @@ func TestZellij_AttachSession(t *testing.T) {
 
 		assert.ErrorIs(t, err, ErrAttachFailed)
 	})
-}
-
-func TestShellEscape(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"simple", "'simple'"},
-		{"with spaces", "'with spaces'"},
-		{"with'quote", "'with'\"'\"'quote'"},
-		{"multiple''quotes", "'multiple'\"'\"''\"'\"'quotes'"},
-		{"", "''"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := shellEscape(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }

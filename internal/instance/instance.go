@@ -10,8 +10,12 @@ import (
 
 // Sentinel errors for instance operations.
 var (
-	ErrNotFound      = errors.New("instance not found")
-	ErrAlreadyExists = errors.New("instance already exists for this branch")
+	ErrNotFound            = errors.New("instance not found")
+	ErrAlreadyExists       = errors.New("instance already exists for this branch")
+	ErrSessionNotFound     = errors.New("session not found")
+	ErrSessionExists       = errors.New("session already exists")
+	ErrInstanceNotRunning  = errors.New("instance is not running")
+	ErrNoSessionsAvailable = errors.New("no sessions available")
 )
 
 // Status represents the instance lifecycle state.
@@ -55,4 +59,23 @@ type AttachConfig struct {
 type ListFilter struct {
 	RepoID string // Filter by repository identifier (empty = all)
 	Status Status // Filter by status (empty = all)
+}
+
+// Session represents a session within an instance (returned by Manager methods).
+// This mirrors catalog.Session but is part of the instance package's public API.
+type Session struct {
+	ID           string    // Unique session identifier
+	Name         string    // Human-readable name (e.g., "happy-panda")
+	Type         string    // Session type (shell, claude, gemini, codex)
+	MuxSessionID string    // Multiplexer session identifier
+	CreatedAt    time.Time // Creation timestamp
+	LastAccessed time.Time // Last access timestamp (for MRU tracking)
+}
+
+// CreateSessionConfig configures session creation.
+type CreateSessionConfig struct {
+	Type    string   // Session type (shell, claude, gemini, codex)
+	Name    string   // Optional session name (auto-generated if empty)
+	Command []string // Initial command to run (optional, defaults to shell)
+	Env     []string // Additional environment variables
 }

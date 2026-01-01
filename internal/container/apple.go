@@ -24,6 +24,17 @@ func NewAppleRuntime(e exec.Executor) Runtime {
 	return &appleRuntime{exec: e}
 }
 
+// containerError formats an error from the container CLI, including stderr if available.
+func containerError(operation string, result *exec.Result, err error) error {
+	if result != nil {
+		stderr := strings.TrimSpace(string(result.Stderr))
+		if stderr != "" {
+			return fmt.Errorf("%s: %s", operation, stderr)
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
 func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
 	args := []string{"run", "--detach", "--name", cfg.Name}
 
@@ -50,7 +61,7 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 		if strings.Contains(stderr, "already exists") {
 			return nil, ErrAlreadyExists
 		}
-		return nil, fmt.Errorf("run container: %w", err)
+		return nil, containerError("run container", result, err)
 	}
 
 	// Container ID is returned on stdout
@@ -96,12 +107,12 @@ func (r *appleRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) erro
 		return r.execInteractive(ctx, args)
 	}
 
-	_, err = r.exec.Run(ctx, &exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: args,
 	})
 	if err != nil {
-		return fmt.Errorf("exec in container: %w", err)
+		return containerError("exec in container", result, err)
 	}
 
 	return nil
@@ -160,12 +171,35 @@ func (r *appleRuntime) Stop(ctx context.Context, id string) error {
 		return nil
 	}
 
-	_, err = r.exec.Run(ctx, &exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: []string{"stop", id},
 	})
 	if err != nil {
-		return fmt.Errorf("stop container: %w", err)
+		return containerError("stop container", result, err)
+	}
+
+	return nil
+}
+
+func (r *appleRuntime) Start(ctx context.Context, id string) error {
+	// Verify container exists
+	c, err := r.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// No-op if already running
+	if c.Status == StatusRunning {
+		return nil
+	}
+
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
+		Name: "container",
+		Args: []string{"start", id},
+	})
+	if err != nil {
+		return containerError("start container", result, err)
 	}
 
 	return nil
@@ -181,7 +215,7 @@ func (r *appleRuntime) Remove(ctx context.Context, id string) error {
 		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
 			return ErrNotFound
 		}
-		return fmt.Errorf("remove container: %w", err)
+		return containerError("remove container", result, err)
 	}
 
 	return nil
@@ -197,7 +231,7 @@ func (r *appleRuntime) Get(ctx context.Context, id string) (*Container, error) {
 		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("inspect container: %w", err)
+		return nil, containerError("inspect container", result, err)
 	}
 
 	var infos []containerInspect
@@ -224,7 +258,7 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 		Args: args,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list containers: %w", err)
+		return nil, containerError("list containers", result, err)
 	}
 
 	// Handle empty list

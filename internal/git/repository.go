@@ -9,6 +9,17 @@ import (
 	"github.com/jmgilman/headjack/internal/exec"
 )
 
+// gitError formats an error from a git command, including stderr if available.
+func gitError(operation string, result *exec.Result, err error) error {
+	if result != nil {
+		stderr := strings.TrimSpace(string(result.Stderr))
+		if stderr != "" {
+			return fmt.Errorf("%s: %s", operation, stderr)
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
 type repository struct {
 	root       string
 	identifier string
@@ -49,7 +60,7 @@ func (r *repository) localBranchExists(ctx context.Context, branch string) (bool
 		if result != nil && result.ExitCode == 1 {
 			return false, nil
 		}
-		return false, fmt.Errorf("check local branch: %w", err)
+		return false, gitError("check local branch", result, err)
 	}
 	return true, nil
 }
@@ -62,7 +73,7 @@ func (r *repository) remoteBranchExists(ctx context.Context, branch string) (boo
 		Dir:  r.root,
 	})
 	if err != nil {
-		return false, fmt.Errorf("check remote branch: %w", err)
+		return false, gitError("check remote branch", result, err)
 	}
 
 	// If output is non-empty, a matching remote branch exists
@@ -99,7 +110,7 @@ func (r *repository) CreateWorktree(ctx context.Context, path, branch string) er
 		if strings.Contains(stderr, "already checked out") {
 			return fmt.Errorf("branch '%s' is already checked out: %w", branch, ErrWorktreeExists)
 		}
-		return fmt.Errorf("create worktree: %w", err)
+		return gitError("create worktree", result, err)
 	}
 
 	return nil
@@ -116,7 +127,7 @@ func (r *repository) RemoveWorktree(ctx context.Context, path string) error {
 		if strings.Contains(stderr, "is not a working tree") {
 			return ErrWorktreeNotFound
 		}
-		return fmt.Errorf("remove worktree: %w", err)
+		return gitError("remove worktree", result, err)
 	}
 
 	return nil
@@ -129,7 +140,7 @@ func (r *repository) ListWorktrees(ctx context.Context) ([]Worktree, error) {
 		Dir:  r.root,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list worktrees: %w", err)
+		return nil, gitError("list worktrees", result, err)
 	}
 
 	return parseWorktreeList(string(result.Stdout))

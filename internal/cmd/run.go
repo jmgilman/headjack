@@ -162,10 +162,23 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 }
 
 // getOrCreateInstance retrieves an existing instance or creates a new one.
+// If the instance exists but is stopped, it restarts the container.
 func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch, image string) (*instance.Instance, error) {
 	// Try to get existing instance
 	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
 	if err == nil {
+		// Instance exists - check if we need to restart it
+		if inst.Status == instance.StatusStopped {
+			if startErr := mgr.Start(cmd.Context(), inst.ID); startErr != nil {
+				return nil, fmt.Errorf("start stopped instance: %w", startErr)
+			}
+			fmt.Printf("Restarted instance %s for branch %s\n", inst.ID, inst.Branch)
+			// Refresh the instance to get updated status
+			inst, err = mgr.GetByBranch(cmd.Context(), repoPath, branch)
+			if err != nil {
+				return nil, fmt.Errorf("get restarted instance: %w", err)
+			}
+		}
 		return inst, nil
 	}
 	if !errors.Is(err, instance.ErrNotFound) {

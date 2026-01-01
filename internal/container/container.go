@@ -90,6 +90,11 @@ type Runtime interface {
 	// Returns ErrNotFound if container doesn't exist.
 	Stop(ctx context.Context, id string) error
 
+	// Start starts a stopped container.
+	// No-op if already running.
+	// Returns ErrNotFound if container doesn't exist.
+	Start(ctx context.Context, id string) error
+
 	// Remove deletes a container.
 	// Container must be stopped first.
 	// Returns ErrNotFound if container doesn't exist.

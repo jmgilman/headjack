@@ -165,7 +165,8 @@ func (t *tmux) ListSessions(ctx context.Context) ([]Session, error) {
 		// Other errors (even with exit code 1) should be surfaced.
 		stderr := string(result.Stderr)
 		if strings.Contains(stderr, "no server running") ||
-			strings.Contains(stderr, "no sessions") {
+			strings.Contains(stderr, "no sessions") ||
+			strings.Contains(stderr, "error connecting to") {
 			return []Session{}, nil
 		}
 		return nil, fmt.Errorf("list sessions: %w", err)

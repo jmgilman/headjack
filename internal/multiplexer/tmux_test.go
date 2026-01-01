@@ -271,14 +271,33 @@ func TestTmux_ListSessions(t *testing.T) {
 		assert.Empty(t, sessions)
 	})
 
-	t.Run("returns error on exit code 1 with unexpected stderr", func(t *testing.T) {
-		// Exit code 1 should only be treated as "no sessions" if stderr contains
-		// known messages like "no server running" or "no sessions".
-		// Other exit code 1 errors should be surfaced.
+	t.Run("handles error connecting to socket gracefully", func(t *testing.T) {
+		// "error connecting to" means the tmux server socket doesn't exist or
+		// can't be reached, which is functionally equivalent to "no sessions".
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("error connecting to /tmp/tmux-1000/default"),
+					ExitCode: 1,
+				}, errors.New("exit code 1")
+			},
+		}
+
+		tm := NewTmux(mockExec)
+		sessions, err := tm.ListSessions(ctx)
+
+		require.NoError(t, err)
+		assert.Empty(t, sessions)
+	})
+
+	t.Run("returns error on exit code 1 with unexpected stderr", func(t *testing.T) {
+		// Exit code 1 should only be treated as "no sessions" if stderr contains
+		// known messages like "no server running", "no sessions", or "error connecting to".
+		// Other exit code 1 errors should be surfaced.
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				return &exec.Result{
+					Stderr:   []byte("permission denied: /tmp/tmux-1000/default"),
 					ExitCode: 1,
 				}, errors.New("exit code 1")
 			},

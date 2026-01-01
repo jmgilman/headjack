@@ -38,6 +38,9 @@ var _ container.Runtime = &RuntimeMock{}
 //			RunFunc: func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 //				panic("mock out the Run method")
 //			},
+//			StartFunc: func(ctx context.Context, id string) error {
+//				panic("mock out the Start method")
+//			},
 //			StopFunc: func(ctx context.Context, id string) error {
 //				panic("mock out the Stop method")
 //			},
@@ -65,6 +68,9 @@ type RuntimeMock struct {
 
 	// RunFunc mocks the Run method.
 	RunFunc func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error)
+
+	// StartFunc mocks the Start method.
+	StartFunc func(ctx context.Context, id string) error
 
 	// StopFunc mocks the Stop method.
 	StopFunc func(ctx context.Context, id string) error
@@ -115,6 +121,13 @@ type RuntimeMock struct {
 			// Cfg is the cfg argument value.
 			Cfg *container.RunConfig
 		}
+		// Start holds details about calls to the Start method.
+		Start []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID string
+		}
 		// Stop holds details about calls to the Stop method.
 		Stop []struct {
 			// Ctx is the ctx argument value.
@@ -129,6 +142,7 @@ type RuntimeMock struct {
 	lockList   sync.RWMutex
 	lockRemove sync.RWMutex
 	lockRun    sync.RWMutex
+	lockStart  sync.RWMutex
 	lockStop   sync.RWMutex
 }
 
@@ -349,6 +363,42 @@ func (mock *RuntimeMock) RunCalls() []struct {
 	mock.lockRun.RLock()
 	calls = mock.calls.Run
 	mock.lockRun.RUnlock()
+	return calls
+}
+
+// Start calls StartFunc.
+func (mock *RuntimeMock) Start(ctx context.Context, id string) error {
+	if mock.StartFunc == nil {
+		panic("RuntimeMock.StartFunc: method is nil but Runtime.Start was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		ID  string
+	}{
+		Ctx: ctx,
+		ID:  id,
+	}
+	mock.lockStart.Lock()
+	mock.calls.Start = append(mock.calls.Start, callInfo)
+	mock.lockStart.Unlock()
+	return mock.StartFunc(ctx, id)
+}
+
+// StartCalls gets all the calls that were made to Start.
+// Check the length with:
+//
+//	len(mockedRuntime.StartCalls())
+func (mock *RuntimeMock) StartCalls() []struct {
+	Ctx context.Context
+	ID  string
+} {
+	var calls []struct {
+		Ctx context.Context
+		ID  string
+	}
+	mock.lockStart.RLock()
+	calls = mock.calls.Start
+	mock.lockStart.RUnlock()
 	return calls
 }
 

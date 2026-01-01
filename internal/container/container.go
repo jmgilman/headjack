@@ -25,6 +25,14 @@ const (
 	StatusUnknown Status = "unknown"
 )
 
+// CLI status strings used by container runtimes.
+const (
+	cliStatusRunning = "running"
+	cliStatusExited  = "exited"
+	cliStatusStopped = "stopped"
+	cliStatusCreated = "created"
+)
+
 // Container holds container metadata.
 type Container struct {
 	ID        string

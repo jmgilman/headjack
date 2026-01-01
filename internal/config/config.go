@@ -29,6 +29,7 @@ var (
 	ErrInvalidKey         = errors.New("invalid configuration key")
 	ErrInvalidAgent       = errors.New("invalid agent name")
 	ErrInvalidMultiplexer = errors.New("invalid multiplexer name")
+	ErrInvalidRuntime     = errors.New("invalid runtime name")
 	ErrNoEditor           = errors.New("$EDITOR environment variable not set")
 )
 
@@ -45,6 +46,12 @@ var validMultiplexers = map[string]bool{
 	"zellij": true,
 }
 
+// validRuntimes contains the allowed runtime names (unexported).
+var validRuntimes = map[string]bool{
+	"podman": true,
+	"apple":  true,
+}
+
 // validKeys is built once from Config struct reflection.
 var validKeys = buildValidKeys()
 
@@ -56,6 +63,7 @@ type Config struct {
 	Default DefaultConfig          `mapstructure:"default" validate:"required"`
 	Agents  map[string]AgentConfig `mapstructure:"agents" validate:"dive,keys,oneof=claude gemini codex,endkeys"`
 	Storage StorageConfig          `mapstructure:"storage" validate:"required"`
+	Runtime RuntimeConfig          `mapstructure:"runtime"`
 }
 
 // DefaultConfig holds default values for new instances.
@@ -75,6 +83,13 @@ type StorageConfig struct {
 	Worktrees string `mapstructure:"worktrees" validate:"required"`
 	Catalog   string `mapstructure:"catalog" validate:"required"`
 	Logs      string `mapstructure:"logs" validate:"required"`
+}
+
+// RuntimeConfig holds container runtime configuration.
+type RuntimeConfig struct {
+	Name       string   `mapstructure:"name" validate:"omitempty,oneof=podman apple"`
+	Privileged bool     `mapstructure:"privileged"`
+	Flags      []string `mapstructure:"flags"`
 }
 
 // Validate checks the configuration for errors using struct tags.
@@ -103,6 +118,16 @@ func (c *Config) IsValidMultiplexer(name string) bool {
 // ValidMultiplexerNames returns the list of valid multiplexer names.
 func (c *Config) ValidMultiplexerNames() []string {
 	return []string{"tmux", "zellij"}
+}
+
+// IsValidRuntime returns true if the runtime name is valid.
+func (c *Config) IsValidRuntime(name string) bool {
+	return validRuntimes[name]
+}
+
+// ValidRuntimeNames returns the list of valid runtime names.
+func (c *Config) ValidRuntimeNames() []string {
+	return []string{"podman", "apple"}
 }
 
 // Loader provides configuration loading and saving.
@@ -164,6 +189,9 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("agents.claude.env", map[string]string{"CLAUDE_CODE_MAX_TURNS": "100"})
 	l.v.SetDefault("agents.gemini.env", map[string]string{})
 	l.v.SetDefault("agents.codex.env", map[string]string{})
+	l.v.SetDefault("runtime.name", "podman")
+	l.v.SetDefault("runtime.privileged", false)
+	l.v.SetDefault("runtime.flags", []string{})
 }
 
 // Load reads the configuration file, creating defaults if it doesn't exist.
@@ -234,6 +262,13 @@ func (l *Loader) Set(key, value string) error {
 	if key == "default.multiplexer" && value != "" {
 		if !validMultiplexers[value] {
 			return fmt.Errorf("%w: %s (valid: tmux, zellij)", ErrInvalidMultiplexer, value)
+		}
+	}
+
+	// Validate runtime name if setting runtime.name
+	if key == "runtime.name" && value != "" {
+		if !validRuntimes[value] {
+			return fmt.Errorf("%w: %s (valid: podman, apple)", ErrInvalidRuntime, value)
 		}
 	}
 
@@ -336,4 +371,14 @@ func IsValidMultiplexer(name string) bool {
 // ValidMultiplexerNames returns the list of valid multiplexer names.
 func ValidMultiplexerNames() []string {
 	return []string{"tmux", "zellij"}
+}
+
+// IsValidRuntime is a package-level helper for checking runtime validity.
+func IsValidRuntime(name string) bool {
+	return validRuntimes[name]
+}
+
+// ValidRuntimeNames returns the list of valid runtime names.
+func ValidRuntimeNames() []string {
+	return []string{"podman", "apple"}
 }

@@ -15,17 +15,24 @@ import (
 	"github.com/jmgilman/headjack/internal/exec"
 )
 
-type appleRuntime struct {
-	exec exec.Executor
+// PodmanConfig holds Podman-specific runtime configuration.
+type PodmanConfig struct {
+	Privileged bool     // Run containers in privileged mode
+	Flags      []string // Custom flags passed to podman run
 }
 
-// NewAppleRuntime creates a Runtime using Apple Containerization CLI.
-func NewAppleRuntime(e exec.Executor) Runtime {
-	return &appleRuntime{exec: e}
+type podmanRuntime struct {
+	exec   exec.Executor
+	config PodmanConfig
 }
 
-// containerError formats an error from the container CLI, including stderr if available.
-func containerError(operation string, result *exec.Result, err error) error {
+// NewPodmanRuntime creates a Runtime using Podman CLI.
+func NewPodmanRuntime(e exec.Executor, cfg PodmanConfig) Runtime {
+	return &podmanRuntime{exec: e, config: cfg}
+}
+
+// podmanError formats an error from the podman CLI, including stderr if available.
+func podmanError(operation string, result *exec.Result, err error) error {
 	if result != nil {
 		stderr := strings.TrimSpace(string(result.Stderr))
 		if stderr != "" {
@@ -35,8 +42,15 @@ func containerError(operation string, result *exec.Result, err error) error {
 	return fmt.Errorf("%s: %w", operation, err)
 }
 
-func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
-	args := []string{"run", "--detach", "--name", cfg.Name}
+func (r *podmanRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
+	args := []string{"run", "--detach", "--name", cfg.Name, "--systemd=always"}
+
+	if r.config.Privileged {
+		args = append(args, "--privileged")
+	}
+
+	// Add custom flags from config
+	args = append(args, r.config.Flags...)
 
 	for _, m := range cfg.Mounts {
 		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
@@ -53,15 +67,15 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 	args = append(args, cfg.Image)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: args,
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "already exists") {
+		if strings.Contains(stderr, "already in use") || strings.Contains(stderr, "already exists") {
 			return nil, ErrAlreadyExists
 		}
-		return nil, containerError("run container", result, err)
+		return nil, podmanError("run container", result, err)
 	}
 
 	// Container ID is returned on stdout
@@ -76,7 +90,7 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 	}, nil
 }
 
-func (r *appleRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) error {
+func (r *podmanRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) error {
 	// Verify container exists and is running
 	container, err := r.Get(ctx, id)
 	if err != nil {
@@ -108,25 +122,25 @@ func (r *appleRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) erro
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: args,
 	})
 	if err != nil {
-		return containerError("exec in container", result, err)
+		return podmanError("exec in container", result, err)
 	}
 
 	return nil
 }
 
-// execInteractive runs the container exec command with TTY support.
-func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error {
+// execInteractive runs the podman exec command with TTY support.
+func (r *podmanRuntime) execInteractive(ctx context.Context, args []string) error {
 	stdinFd := int(os.Stdin.Fd())
 
 	// Check if stdin is a terminal
 	if !term.IsTerminal(stdinFd) {
 		// Fall back to non-interactive mode
 		_, err := r.exec.Run(ctx, &exec.RunOptions{
-			Name:   "container",
+			Name:   "podman",
 			Args:   args,
 			Stdin:  os.Stdin,
 			Stdout: os.Stdout,
@@ -149,7 +163,7 @@ func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error
 
 	// Run the command with stdio attached
 	_, err = r.exec.Run(ctx, &exec.RunOptions{
-		Name:   "container",
+		Name:   "podman",
 		Args:   args,
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
@@ -159,7 +173,7 @@ func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error
 	return err
 }
 
-func (r *appleRuntime) Stop(ctx context.Context, id string) error {
+func (r *podmanRuntime) Stop(ctx context.Context, id string) error {
 	// Verify container exists
 	c, err := r.Get(ctx, id)
 	if err != nil {
@@ -172,17 +186,17 @@ func (r *appleRuntime) Stop(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: []string{"stop", id},
 	})
 	if err != nil {
-		return containerError("stop container", result, err)
+		return podmanError("stop container", result, err)
 	}
 
 	return nil
 }
 
-func (r *appleRuntime) Start(ctx context.Context, id string) error {
+func (r *podmanRuntime) Start(ctx context.Context, id string) error {
 	// Verify container exists
 	c, err := r.Get(ctx, id)
 	if err != nil {
@@ -195,46 +209,46 @@ func (r *appleRuntime) Start(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: []string{"start", id},
 	})
 	if err != nil {
-		return containerError("start container", result, err)
+		return podmanError("start container", result, err)
 	}
 
 	return nil
 }
 
-func (r *appleRuntime) Remove(ctx context.Context, id string) error {
+func (r *podmanRuntime) Remove(ctx context.Context, id string) error {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: []string{"rm", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
+		if strings.Contains(stderr, "no such") || strings.Contains(stderr, "no container") {
 			return ErrNotFound
 		}
-		return containerError("remove container", result, err)
+		return podmanError("remove container", result, err)
 	}
 
 	return nil
 }
 
-func (r *appleRuntime) Get(ctx context.Context, id string) (*Container, error) {
+func (r *podmanRuntime) Get(ctx context.Context, id string) (*Container, error) {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
-		Args: []string{"inspect", id},
+		Name: "podman",
+		Args: []string{"inspect", "--format", "json", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
+		if strings.Contains(stderr, "no such") || strings.Contains(stderr, "no container") {
 			return nil, ErrNotFound
 		}
-		return nil, containerError("inspect container", result, err)
+		return nil, podmanError("inspect container", result, err)
 	}
 
-	var infos []containerInspect
+	var infos []podmanInspect
 	if err := json.Unmarshal(result.Stdout, &infos); err != nil {
 		return nil, fmt.Errorf("parse container info: %w", err)
 	}
@@ -246,19 +260,19 @@ func (r *appleRuntime) Get(ctx context.Context, id string) (*Container, error) {
 	return infos[0].toContainer(), nil
 }
 
-func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container, error) {
-	args := []string{"list", "--format", "json"}
+func (r *podmanRuntime) List(ctx context.Context, filter ListFilter) ([]Container, error) {
+	args := []string{"ps", "-a", "--format", "json"}
 
 	if filter.Name != "" {
 		args = append(args, "--filter", "name="+filter.Name)
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: args,
 	})
 	if err != nil {
-		return nil, containerError("list containers", result, err)
+		return nil, podmanError("list containers", result, err)
 	}
 
 	// Handle empty list
@@ -267,7 +281,7 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 		return []Container{}, nil
 	}
 
-	var items []containerListItem
+	var items []podmanListItem
 	if err := json.Unmarshal(result.Stdout, &items); err != nil {
 		return nil, fmt.Errorf("parse container list: %w", err)
 	}
@@ -280,7 +294,7 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 	return containers, nil
 }
 
-func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
+func (r *podmanRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
 	args := []string{"build", "-t", cfg.Tag}
 
 	if cfg.Dockerfile != "" {
@@ -290,7 +304,7 @@ func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
 	args = append(args, cfg.Context)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: "podman",
 		Args: args,
 	})
 	if err != nil {
@@ -300,59 +314,80 @@ func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
 	return nil
 }
 
-// containerInspect represents the JSON output of `container inspect`.
-type containerInspect struct {
-	Status        string `json:"status"`
-	Configuration struct {
-		ID    string `json:"id"`
-		Image struct {
-			Reference string `json:"reference"`
-		} `json:"image"`
-	} `json:"configuration"`
+// podmanInspect represents the JSON output of `podman inspect`.
+type podmanInspect struct {
+	ID      string `json:"Id"`
+	Name    string `json:"Name"`
+	Created string `json:"Created"`
+	State   struct {
+		Status string `json:"Status"`
+	} `json:"State"`
+	Config struct {
+		Image string `json:"Image"`
+	} `json:"Config"`
+	ImageName string `json:"ImageName"`
 }
 
-func (c *containerInspect) toContainer() *Container {
+func (p *podmanInspect) toContainer() *Container {
 	status := StatusUnknown
-	switch strings.ToLower(c.Status) {
+	switch strings.ToLower(p.State.Status) {
 	case cliStatusRunning:
 		status = StatusRunning
-	case cliStatusStopped, cliStatusExited:
+	case cliStatusStopped, cliStatusExited, cliStatusCreated:
 		status = StatusStopped
+	}
+
+	// Remove leading "/" from name if present
+	name := strings.TrimPrefix(p.Name, "/")
+
+	// Use ImageName if available, otherwise fall back to Config.Image
+	image := p.ImageName
+	if image == "" {
+		image = p.Config.Image
+	}
+
+	createdAt, err := time.Parse(time.RFC3339, p.Created)
+	if err != nil {
+		createdAt = time.Time{}
 	}
 
 	return &Container{
-		ID:     c.Configuration.ID,
-		Name:   c.Configuration.ID,
-		Image:  c.Configuration.Image.Reference,
-		Status: status,
+		ID:        p.ID,
+		Name:      name,
+		Image:     image,
+		Status:    status,
+		CreatedAt: createdAt,
 	}
 }
 
-// containerListItem represents a single item in `container list` JSON output.
-// Note: Apple container list has same format as inspect.
-type containerListItem struct {
-	Status        string `json:"status"`
-	Configuration struct {
-		ID    string `json:"id"`
-		Image struct {
-			Reference string `json:"reference"`
-		} `json:"image"`
-	} `json:"configuration"`
+// podmanListItem represents a single item in `podman ps` JSON output.
+type podmanListItem struct {
+	ID      string   `json:"Id"`
+	Names   []string `json:"Names"`
+	Image   string   `json:"Image"`
+	State   string   `json:"State"`
+	Created int64    `json:"Created"`
 }
 
-func (c *containerListItem) toContainer() Container {
+func (p *podmanListItem) toContainer() Container {
 	status := StatusUnknown
-	switch strings.ToLower(c.Status) {
+	switch strings.ToLower(p.State) {
 	case cliStatusRunning:
 		status = StatusRunning
-	case cliStatusStopped, cliStatusExited:
+	case cliStatusStopped, cliStatusExited, cliStatusCreated:
 		status = StatusStopped
 	}
 
+	name := ""
+	if len(p.Names) > 0 {
+		name = p.Names[0]
+	}
+
 	return Container{
-		ID:     c.Configuration.ID,
-		Name:   c.Configuration.ID,
-		Image:  c.Configuration.Image.Reference,
-		Status: status,
+		ID:        p.ID,
+		Name:      name,
+		Image:     p.Image,
+		Status:    status,
+		CreatedAt: time.Unix(p.Created, 0),
 	}
 }

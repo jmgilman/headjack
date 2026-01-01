@@ -48,6 +48,32 @@ linters:
   disable:
     - depguard       # Requires explicit configuration, enable if needed
 
+  # Exclusion rules
+  exclusions:
+    # Built-in presets
+    presets:
+      - comments
+      - std-error-handling
+    # Custom rules
+    rules:
+      # Allow complexity in test files
+      - path: '_test\.go'
+        linters:
+          - gocyclo
+          - gocognit
+          - funlen
+      # Exclude some gosec checks in test files
+      - path: '_test\.go'
+        linters:
+          - gosec
+        text: "G101|G104|G107"
+      # Allow issues in generated mock files
+      - path: 'mocks/'
+        linters:
+          - gocritic
+          - revive
+          - stylecheck
+
   # Linter-specific settings
   settings:
     # Security linter settings
@@ -145,7 +171,6 @@ linters:
       no-mixed-args: true
       kv-only: false
       attr-only: false
-      context-only: false
       static-msg: false
       no-raw-keys: false
       key-naming-case: snake
@@ -156,36 +181,6 @@ issues:
   max-issues-per-linter: 50
   # Maximum identical issues (0 = unlimited)
   max-same-issues: 3
-  # Show only new issues (useful for CI)
-  new: false
-  # Fix issues automatically where possible
-  fix: false
-
-  # Exclude specific issues
-  exclude-rules:
-    # Allow long lines in generated mock files
-    - path: mocks/
-      linters:
-        - gocritic
-        - revive
-        - stylecheck
-
-    # Allow dot imports in test files for testify
-    - path: _test\.go
-      text: "dot-imports"
-
-    # Allow complexity in test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - gocognit
-        - funlen
-
-    # Exclude some gosec checks in test files
-    - path: _test\.go
-      linters:
-        - gosec
-      text: "G101|G104|G107"
 
 # Runtime configuration
 run:
@@ -210,7 +205,8 @@ formatters:
   settings:
     goimports:
       # Group local imports separately
-      local-prefixes: github.com/jmgilman/headjack
+      local-prefixes:
+        - github.com/jmgilman/headjack
 
 # Output configuration
 output:

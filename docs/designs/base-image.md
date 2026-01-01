@@ -55,14 +55,14 @@ Headjack images use OCI labels to declare how they should be run. These labels a
 | Label | Purpose | Default (if absent) |
 |-------|---------|---------------------|
 | `io.headjack.init` | Command to run as PID 1 | `sleep infinity` |
-| `io.headjack.podman.flags` | Space-separated Podman-specific flags | (none) |
+| `io.headjack.podman.flags` | Space-separated `key=value` pairs for Podman flags | (none) |
 
 ### Label Usage by Variant
 
 | Variant | `io.headjack.init` | `io.headjack.podman.flags` |
 |---------|-------------------|---------------------------|
 | `:base` | (not set, uses default) | (not set) |
-| `:systemd` | `/lib/systemd/systemd` | `--systemd=always` |
+| `:systemd` | `/lib/systemd/systemd` | `systemd=always` |
 | `:dind` | (inherited from systemd) | (inherited from systemd) |
 
 ### How It Works
@@ -70,9 +70,40 @@ Headjack images use OCI labels to declare how they should be run. These labels a
 1. When creating a container, Headjack fetches image metadata from the registry
 2. It extracts the `io.headjack.*` labels
 3. The `init` value becomes the container's main process (keeping it alive)
-4. The `podman.flags` value is passed as extra flags to `podman run`
+4. The `podman.flags` value is parsed and merged with config flags (see below)
+5. The merged flags are passed to `podman run`
 
 This allows images with systemd to be configured automatically with the correct Podman flags, while the base image uses a simple `sleep infinity` to keep the container running.
+
+### Flag Format
+
+The `io.headjack.podman.flags` label uses a simple `key=value` format:
+
+| Label Value | Resulting Flag |
+|-------------|----------------|
+| `systemd=always` | `--systemd=always` |
+| `privileged=true` | `--privileged` |
+| `privileged=false` | (omitted) |
+| `volume=/a:/b volume=/c:/d` | `--volume=/a:/b --volume=/c:/d` |
+| `privileged` | `--privileged` (bare key = true) |
+
+### Config Flags
+
+You can also specify runtime flags in your config file. Config flags take precedence over image label flags:
+
+```yaml
+# ~/.config/headjack/config.yaml
+runtime:
+  flags:
+    memory: "4g"           # --memory=4g
+    systemd: "always"      # --systemd=always
+    privileged: true       # --privileged
+    volume:                # Repeated flags become arrays
+      - "/host/path:/container/path"
+      - "/another:/mount"
+```
+
+**Merge behavior:** When both image labels and config specify the same flag, the config value wins. This allows users to override image defaults without modifying the image.
 
 ### Custom Images
 
@@ -85,7 +116,7 @@ FROM ghcr.io/jmgilman/headjack:base
 LABEL io.headjack.init="/usr/local/bin/my-init"
 
 # Custom Podman flags (e.g., for GPU support)
-LABEL io.headjack.podman.flags="--device nvidia.com/gpu=all"
+LABEL io.headjack.podman.flags="device=nvidia.com/gpu=all"
 ```
 
 ---

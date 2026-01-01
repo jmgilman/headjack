@@ -17,8 +17,7 @@ import (
 
 // PodmanConfig holds Podman-specific runtime configuration.
 type PodmanConfig struct {
-	Privileged bool     // Run containers in privileged mode
-	Flags      []string // Custom flags passed to podman run
+	Privileged bool // Run containers in privileged mode
 }
 
 type podmanRuntime struct {
@@ -49,10 +48,7 @@ func (r *podmanRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, er
 		args = append(args, "--privileged")
 	}
 
-	// Add custom flags from runtime config
-	args = append(args, r.config.Flags...)
-
-	// Add image-specific flags (e.g., --systemd=always from image labels)
+	// Add merged flags (image labels + config, merged by manager)
 	args = append(args, cfg.Flags...)
 
 	for _, m := range cfg.Mounts {

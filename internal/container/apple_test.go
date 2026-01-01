@@ -121,7 +121,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("includes custom flags from config", func(t *testing.T) {
+	t.Run("includes custom flags from RunConfig", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "--memory=2g")
@@ -134,12 +134,11 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{
-			Flags: []string{"--memory=2g", "--cpus=2"},
-		})
+		runtime := NewAppleRuntime(mockExec, AppleConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
+			Flags: []string{"--memory=2g", "--cpus=2"},
 		})
 
 		require.NoError(t, err)

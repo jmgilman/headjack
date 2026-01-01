@@ -1276,7 +1276,7 @@ func TestGetImageRuntimeConfig(t *testing.T) {
 				return &registry.ImageMetadata{
 					Labels: map[string]string{
 						"io.headjack.init":         "/lib/systemd/systemd",
-						"io.headjack.podman.flags": "--systemd=always --privileged",
+						"io.headjack.podman.flags": "systemd=always privileged=true",
 					},
 				}, nil
 			},
@@ -1289,7 +1289,8 @@ func TestGetImageRuntimeConfig(t *testing.T) {
 		cfg := mgr.getImageRuntimeConfig(ctx, "myimage:systemd")
 
 		assert.Equal(t, "/lib/systemd/systemd", cfg.Init)
-		assert.Equal(t, []string{"--systemd=always", "--privileged"}, cfg.Flags)
+		assert.Equal(t, "always", cfg.Flags["systemd"])
+		assert.Equal(t, true, cfg.Flags["privileged"])
 	})
 
 	t.Run("ignores podman flags when using apple runtime", func(t *testing.T) {
@@ -1298,7 +1299,7 @@ func TestGetImageRuntimeConfig(t *testing.T) {
 				return &registry.ImageMetadata{
 					Labels: map[string]string{
 						"io.headjack.init":         "/lib/systemd/systemd",
-						"io.headjack.podman.flags": "--systemd=always --privileged",
+						"io.headjack.podman.flags": "systemd=always privileged=true",
 					},
 				}, nil
 			},

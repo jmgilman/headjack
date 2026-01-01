@@ -14,6 +14,7 @@ import (
 	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/container"
 	hjexec "github.com/jmgilman/headjack/internal/exec"
+	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
@@ -172,14 +173,12 @@ func initManager(muxOverride string) error {
 		appleCfg := container.AppleConfig{}
 		if appConfig != nil {
 			appleCfg.Privileged = appConfig.Runtime.Privileged
-			appleCfg.Flags = appConfig.Runtime.Flags
 		}
 		runtime = container.NewAppleRuntime(executor, appleCfg)
 	default:
 		podmanCfg := container.PodmanConfig{}
 		if appConfig != nil {
 			podmanCfg.Privileged = appConfig.Runtime.Privileged
-			podmanCfg.Flags = appConfig.Runtime.Flags
 		}
 		runtime = container.NewPodmanRuntime(executor, podmanCfg)
 	}
@@ -206,21 +205,42 @@ func initManager(muxOverride string) error {
 	regClient := registry.NewClient(registry.ClientConfig{})
 
 	// Map runtime name to RuntimeType
-	var runtimeType instance.RuntimeType
-	switch runtimeName {
-	case runtimeNameApple:
-		runtimeType = instance.RuntimeApple
-	default:
-		runtimeType = instance.RuntimePodman
+	runtimeType := runtimeNameToType(runtimeName)
+
+	// Parse config flags for merging with image label flags
+	configFlags, err := getConfigFlags()
+	if err != nil {
+		return err
 	}
 
 	mgr = instance.NewManager(store, runtime, opener, mux, regClient, instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
 		LogsDir:      logsDir,
 		RuntimeType:  runtimeType,
+		ConfigFlags:  configFlags,
 	})
 
 	return nil
+}
+
+// runtimeNameToType converts a runtime name string to RuntimeType.
+func runtimeNameToType(name string) instance.RuntimeType {
+	if name == runtimeNameApple {
+		return instance.RuntimeApple
+	}
+	return instance.RuntimePodman
+}
+
+// getConfigFlags parses runtime flags from config.
+func getConfigFlags() (flags.Flags, error) {
+	if appConfig == nil || appConfig.Runtime.Flags == nil {
+		return make(flags.Flags), nil
+	}
+	configFlags, err := flags.FromConfig(appConfig.Runtime.Flags)
+	if err != nil {
+		return nil, fmt.Errorf("parse runtime flags: %w", err)
+	}
+	return configFlags, nil
 }
 
 // formatList joins strings with commas and "and" before the last item.

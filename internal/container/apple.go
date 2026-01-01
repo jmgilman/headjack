@@ -17,8 +17,7 @@ import (
 
 // AppleConfig holds Apple Containerization-specific runtime configuration.
 type AppleConfig struct {
-	Privileged bool     // Run containers in privileged mode
-	Flags      []string // Custom flags passed to container run
+	Privileged bool // Run containers in privileged mode
 }
 
 type appleRuntime struct {
@@ -49,10 +48,7 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 		args = append(args, "--privileged")
 	}
 
-	// Add custom flags from config
-	args = append(args, r.config.Flags...)
-
-	// Add image-specific flags (e.g., from image labels)
+	// Add merged flags (image labels + config, merged by manager)
 	args = append(args, cfg.Flags...)
 
 	for _, m := range cfg.Mounts {

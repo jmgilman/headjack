@@ -22,7 +22,7 @@ func TestNewPodmanRuntime(t *testing.T) {
 func TestPodmanRuntime_Run(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("creates container successfully", func(t *testing.T) {
+	t.Run("creates container successfully with default init command", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "podman", opts.Name)
@@ -30,8 +30,10 @@ func TestPodmanRuntime_Run(t *testing.T) {
 				assert.Contains(t, opts.Args, "--detach")
 				assert.Contains(t, opts.Args, "--name")
 				assert.Contains(t, opts.Args, "test-container")
-				assert.Contains(t, opts.Args, "--systemd=always")
 				assert.Contains(t, opts.Args, "ubuntu:24.04")
+				// Default init command should be "sleep infinity"
+				assert.Contains(t, opts.Args, "sleep")
+				assert.Contains(t, opts.Args, "infinity")
 
 				return &exec.Result{
 					Stdout:   []byte("abc123def456\n"),
@@ -51,6 +53,51 @@ func TestPodmanRuntime_Run(t *testing.T) {
 		assert.Equal(t, "test-container", container.Name)
 		assert.Equal(t, "ubuntu:24.04", container.Image)
 		assert.Equal(t, StatusRunning, container.Status)
+	})
+
+	t.Run("uses custom init command when specified", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				// Custom init command should be at the end
+				assert.Contains(t, opts.Args, "/lib/systemd/systemd")
+
+				return &exec.Result{
+					Stdout:   []byte("abc123\n"),
+					ExitCode: 0,
+				}, nil
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		_, err := runtime.Run(ctx, &RunConfig{
+			Name:  "test",
+			Image: "ubuntu",
+			Init:  "/lib/systemd/systemd",
+		})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("includes image-specific flags from RunConfig", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Contains(t, opts.Args, "--systemd=always")
+
+				return &exec.Result{
+					Stdout:   []byte("abc123\n"),
+					ExitCode: 0,
+				}, nil
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		_, err := runtime.Run(ctx, &RunConfig{
+			Name:  "test",
+			Image: "ubuntu",
+			Flags: []string{"--systemd=always"},
+		})
+
+		require.NoError(t, err)
 	})
 
 	t.Run("includes privileged flag when configured", func(t *testing.T) {

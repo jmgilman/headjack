@@ -1,89 +1,176 @@
-# Design: Base Image
+# Design: Container Images
 
 ## Overview
 
-This document specifies the default base image shipped with Headjack. The image provides a complete development environment suitable for running CLI-based coding agents.
+Headjack ships three container image variants, each building on the previous to add functionality. This layered approach allows users to choose the minimal image for their needs.
+
+## Image Variants
+
+```
+headjack:base  →  headjack:systemd  →  headjack:dind
+   (minimal)        (+ init system)      (+ Docker)
+```
+
+| Variant | Tag | Size (approx) | Use Case |
+|---------|-----|---------------|----------|
+| **Base** | `:base` | ~600 MB | Most development work; no Docker or systemd needed |
+| **systemd** | `:systemd` | ~610 MB | Multi-service environments needing init system |
+| **DinD** | `:dind` | ~1 GB | Workflows requiring Docker-in-Docker |
+
+### Default
+
+The default image is `:base` (minimal). Users who need systemd or Docker must explicitly specify the variant:
+
+```bash
+# Use systemd variant
+hjk run feat/auth --base ghcr.io/jmgilman/headjack:systemd
+
+# Use Docker-in-Docker variant
+hjk run feat/auth --base ghcr.io/jmgilman/headjack:dind
+```
+
+Or configure in `~/.config/headjack/config.yaml`:
+
+```yaml
+default:
+  base_image: ghcr.io/jmgilman/headjack:dind
+```
+
+---
 
 ## Image Details
 
 | Property | Value |
 |----------|-------|
-| Registry | `ghcr.io/headjack/base` |
+| Registry | `ghcr.io/{owner}/headjack` |
 | Base OS | Ubuntu 24.04 LTS |
-| Architecture | `linux/arm64` (Apple Silicon) |
+| Architectures | `linux/amd64`, `linux/arm64` |
 
-## Pre-installed Components
+---
 
-### Operating System Configuration
+## Runtime Configuration Labels
 
-- **systemd**: Enabled (required for multi-service environments)
-- **iptables-legacy**: Configured as default (required for Docker-in-Docker)
-- **Locales**: `en_US.UTF-8`
-- **Timezone**: `UTC`
+Headjack images use OCI labels to declare how they should be run. These labels are read by Headjack at runtime to configure the container appropriately.
 
-### Docker
+| Label | Purpose | Default (if absent) |
+|-------|---------|---------------------|
+| `io.headjack.init` | Command to run as PID 1 | `sleep infinity` |
+| `io.headjack.podman.flags` | Space-separated Podman-specific flags | (none) |
 
-Docker CE is pre-installed and configured:
+### Label Usage by Variant
 
-- Docker daemon starts automatically via systemd
-- iptables-legacy workaround applied (see ADR 002)
-- User added to `docker` group for rootless access
+| Variant | `io.headjack.init` | `io.headjack.podman.flags` |
+|---------|-------------------|---------------------------|
+| `:base` | (not set, uses default) | (not set) |
+| `:systemd` | `/lib/systemd/systemd` | `--systemd=always` |
+| `:dind` | (inherited from systemd) | (inherited from systemd) |
 
-### Agent CLIs
+### How It Works
 
-All three supported agent CLIs are pre-installed:
+1. When creating a container, Headjack fetches image metadata from the registry
+2. It extracts the `io.headjack.*` labels
+3. The `init` value becomes the container's main process (keeping it alive)
+4. The `podman.flags` value is passed as extra flags to `podman run`
 
-| Agent | Installation Method |
-|-------|---------------------|
-| **Claude Code** | `npm install -g @anthropic-ai/claude-code` |
-| **Gemini CLI** | `npm install -g @anthropic-ai/gemini-cli` |
-| **Codex CLI** | `npm install -g @openai/codex` |
+This allows images with systemd to be configured automatically with the correct Podman flags, while the base image uses a simple `sleep infinity` to keep the container running.
 
-Note: Installation methods may vary as these tools evolve. The image build process should use the official installation method for each.
+### Custom Images
 
-### Common Tooling
+When creating custom images, you can set these labels to control runtime behavior:
 
-**Version Control & Collaboration:**
-- `git`
-- `git-lfs`
-- `gh` (GitHub CLI)
+```dockerfile
+FROM ghcr.io/jmgilman/headjack:base
 
-**Network & Data:**
-- `curl`
-- `wget`
-- `jq`
-- `yq`
+# Custom init process
+LABEL io.headjack.init="/usr/local/bin/my-init"
 
-**File & Text Processing:**
-- `ripgrep` (`rg`)
-- `fd-find` (`fd`)
-- `fzf`
-- `tree`
-- `less`
+# Custom Podman flags (e.g., for GPU support)
+LABEL io.headjack.podman.flags="--device nvidia.com/gpu=all"
+```
 
-**System Utilities:**
-- `htop`
-- `vim`
-- `openssh-client`
-- `zip`, `unzip`
-- `make`
-- `build-essential`
+---
 
-**Terminal Multiplexer:**
-- `zellij` - Session management for CLI agents
+## Variant Contents
 
-### Language Version Managers
+### Base Image (`:base`)
 
-Rather than pre-installing specific language versions, the image includes version managers that allow users to install the versions they need:
+The minimal image containing everything needed for CLI-based coding agents.
 
-| Language | Version Manager | Shell Integration |
-|----------|-----------------|-------------------|
-| **Python** | `pyenv` | Added to `.bashrc` |
-| **Node.js** | `nodenv` | Added to `.bashrc` |
-| **Go** | `goenv` | Added to `.bashrc` |
-| **Rust** | `rustup` | Added to `.bashrc` |
+**Operating System:**
+- Ubuntu 24.04 LTS
+- Locales: `en_US.UTF-8`
+- Timezone: `UTC`
 
-Users can install specific versions inside their instances:
+**Agent CLIs:**
+
+| Agent | Package |
+|-------|---------|
+| Claude Code | `@anthropic-ai/claude-code` |
+| Gemini CLI | `@google/gemini-cli` |
+| Codex CLI | `@openai/codex` |
+
+**Common Tooling:**
+
+- **Version Control**: git, git-lfs, gh (GitHub CLI)
+- **Network & Data**: curl, wget, jq, yq
+- **File & Text Processing**: ripgrep, fd-find, fzf, tree, less
+- **System Utilities**: htop, tmux, vim, openssh-client, zip, unzip, make, build-essential
+- **Terminal Multiplexer**: zellij
+
+**Language Version Managers:**
+
+| Language | Manager | Shell Integration |
+|----------|---------|-------------------|
+| Python | pyenv | Added to `.bashrc` |
+| Node.js | nodenv | Added to `.bashrc` |
+| Go | goenv | Added to `.bashrc` |
+| Rust | rustup | Added to `.bashrc` |
+
+**Non-root User:**
+- Username: `developer` (UID 1000)
+- Home: `/home/developer`
+
+**Default Command:** `/bin/bash`
+
+### systemd Image (`:systemd`)
+
+Extends `:base` with systemd init system support.
+
+**Adds:**
+- systemd and systemd-sysv packages
+- systemd configured for container use (unnecessary services removed)
+- Cgroup volume mount
+
+**Default Command:** `/lib/systemd/systemd`
+
+**Use when:**
+- Your application requires proper process supervision
+- You need to run multiple services in the container
+- Services require systemd unit files
+
+### DinD Image (`:dind`)
+
+Extends `:systemd` with Docker-in-Docker support.
+
+**Adds:**
+- Docker CE (docker-ce, docker-ce-cli, containerd.io)
+- Docker Compose plugin
+- Docker Buildx plugin
+- iptables-legacy workaround (required for Apple Containerization Framework, see ADR-002)
+- `developer` user added to `docker` group
+
+**Default Command:** `/lib/systemd/systemd` (inherited)
+
+**Use when:**
+- Your workflow requires building Docker images
+- You need to run Docker containers inside the agent container
+- Testing CI/CD pipelines that use Docker
+
+---
+
+## Version Managers
+
+Rather than pre-installing specific language versions, images include version managers:
 
 ```bash
 # Python
@@ -106,22 +193,20 @@ rustup default stable
 
 ## Image Customization
 
-Users who need additional tooling have two options (see ADR 006):
+### Option 1: Use a Different Variant
 
-### Option 1: Use a Different Image
-
-Specify an alternative image via the `--base` flag or configuration:
+Specify the variant via `--base` or configuration:
 
 ```bash
-hjk new feat/auth --base my-registry.io/custom-image:latest
+hjk run feat/auth --base ghcr.io/jmgilman/headjack:systemd
 ```
 
-### Option 2: Extend the Base Image
+### Option 2: Extend an Existing Variant
 
-Create a Dockerfile that inherits from the Headjack base:
+Create a Dockerfile that inherits from a Headjack image:
 
 ```dockerfile
-FROM ghcr.io/headjack/base:latest
+FROM ghcr.io/jmgilman/headjack:base
 
 # Add custom tooling
 RUN apt-get update && apt-get install -y \
@@ -129,21 +214,19 @@ RUN apt-get update && apt-get install -y \
     redis-tools
 
 # Pre-install specific language versions
+USER developer
 RUN pyenv install 3.11.0 && pyenv global 3.11.0
-RUN nodenv install 20.0.0 && nodenv global 20.0.0
 ```
 
 Then reference it:
 
 ```bash
-hjk new feat/auth --base ./Dockerfile
+hjk run feat/auth --base ./Dockerfile
 ```
 
 ---
 
 ## Environment Variables
-
-The following environment variables are pre-configured:
 
 | Variable | Value | Purpose |
 |----------|-------|---------|
@@ -151,59 +234,59 @@ The following environment variables are pre-configured:
 | `LANG` | `en_US.UTF-8` | Locale setting |
 | `PATH` | Extended | Includes version manager shims |
 
-Agent-specific environment variables (e.g., `CLAUDE_CODE_OAUTH_TOKEN`) are injected at runtime by Headjack, not baked into the image.
+Agent-specific environment variables (e.g., `CLAUDE_CODE_OAUTH_TOKEN`) are injected at runtime by Headjack.
 
 ---
 
 ## Image Build
 
-The base image is built using a Dockerfile in the Headjack repository:
+Images are built from Dockerfiles in the Headjack repository:
 
 ```
-/images/base/Dockerfile
+images/
+├── base/
+│   └── Dockerfile      # Base image
+├── systemd/
+│   └── Dockerfile      # Extends base
+└── dind/
+    └── Dockerfile      # Extends systemd
 ```
 
 ### Build Process
 
-1. CI builds the image on each release
-2. Image is pushed to `ghcr.io/headjack/base:<version>` and `ghcr.io/headjack/base:latest`
-3. SHA256 digest is recorded in release notes for verification
+1. CI builds all three variants on each release (in sequence due to dependencies)
+2. Images are pushed to `ghcr.io/{owner}/headjack:{variant}`
+3. Each image is signed with Cosign and has an SBOM attached
+
+### Local Build
+
+```bash
+just build-images      # Build all variants
+just build-base        # Build base only
+just lint-dockerfiles  # Lint all Dockerfiles
+```
 
 ### Versioning
 
-- Images are tagged with Headjack release versions (e.g., `v0.1.0`)
-- `latest` always points to the most recent stable release
-- Users can pin to specific versions in configuration:
+- `headjack:base` - Latest base variant
+- `headjack:systemd` - Latest systemd variant
+- `headjack:dind` - Latest dind variant
+- `headjack:base-v1.0.0` - Pinned version
+
+Users can pin to specific versions:
 
 ```yaml
 # config.yaml
 default:
-  base_image: ghcr.io/headjack/base:v0.1.0
+  base_image: ghcr.io/jmgilman/headjack:base-v1.0.0
 ```
 
 ---
 
-## Size Considerations
+## Size Breakdown
 
-Estimated image size breakdown:
-
-| Component | Approximate Size |
-|-----------|------------------|
-| Ubuntu 24.04 base | ~75 MB |
-| Docker CE | ~400 MB |
-| Common tooling | ~150 MB |
-| Version managers | ~50 MB |
-| Agent CLIs + Node.js runtime | ~300 MB |
-| **Total (compressed)** | **~1 GB** |
-
-The image prioritizes functionality over size. Users requiring smaller images can build their own.
-
----
-
-## Future Considerations
-
-Out of scope for v1, but noted for future reference:
-
-- **Multi-architecture support**: Add `linux/amd64` for non-Apple Silicon Macs
-- **Slim variants**: Offer a minimal image without version managers
-- **Pre-warmed language versions**: Variant images with common language versions pre-installed
+| Variant | Components | Size |
+|---------|------------|------|
+| `:base` | Ubuntu + tools + agents + version managers | ~600 MB |
+| `:systemd` | Base + systemd | ~610 MB |
+| `:dind` | systemd + Docker CE | ~1 GB |

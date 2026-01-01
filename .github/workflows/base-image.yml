@@ -1,15 +1,15 @@
-name: Base Image
+name: Container Images
 
 on:
   pull_request:
     paths:
-      - 'images/base/**'
+      - 'images/**'
       - '.github/workflows/base-image.yml'
   push:
     branches:
       - master
     paths:
-      - 'images/base/**'
+      - 'images/**'
       - '.github/workflows/base-image.yml'
   release:
     types: [published]
@@ -18,13 +18,37 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Lint base Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: images/base/Dockerfile
+
+      - name: Lint systemd Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: images/systemd/Dockerfile
+
+      - name: Lint dind Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: images/dind/Dockerfile
+
+  build-base:
+    needs: lint
     runs-on: warp-ubuntu-latest-x64-4x
     permissions:
       actions: read
       contents: write
       packages: write
       id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
@@ -32,7 +56,7 @@ jobs:
 
       - name: Set image name
         id: image
-        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/base" >> $GITHUB_OUTPUT
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
 
       - name: Configure WarpBuild Docker Builder
         uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
@@ -53,16 +77,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
           tags: |
-            # Set latest tag for master branch
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
-            # Set version tag for releases (e.g., v0.1.0)
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-
-      - name: Lint Dockerfile with Hadolint
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
-        with:
-          dockerfile: images/base/Dockerfile
+            # Set base tag for master branch
+            type=raw,value=base,enable=${{ github.ref == 'refs/heads/master' }}
+            # Set version tag for releases (e.g., base-v0.1.0)
+            type=semver,pattern=base-{{version}},enable=${{ github.event_name == 'release' }}
 
       - name: Build and push Docker image
         id: build
@@ -80,7 +98,7 @@ jobs:
         with:
           image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: sbom-base.spdx.json
           artifact-name: base-image.spdx.json
           upload-release-assets: true
 
@@ -100,16 +118,180 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           COSIGN_YES: "true"
-        run: cosign attest --predicate sbom.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: cosign attest --predicate sbom-base.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
 
-      - name: Output image digest
+  build-systemd:
+    needs: build-base
+    runs-on: warp-ubuntu-latest-x64-4x
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set image name
+        id: image
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Configure WarpBuild Docker Builder
+        uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
+        with:
+          profile-name: default
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          tags: |
+            # Set systemd tag for master branch
+            type=raw,value=systemd,enable=${{ github.ref == 'refs/heads/master' }}
+            # Set version tag for releases (e.g., systemd-v0.1.0)
+            type=semver,pattern=systemd-{{version}},enable=${{ github.event_name == 'release' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: images/systemd
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ needs.build-base.outputs.digest }}
+
+      - name: Generate SBOM with Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-systemd.spdx.json
+          artifact-name: systemd-image.spdx.json
+          upload-release-assets: true
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: v3.0.3
+
+      - name: Sign image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+
+      - name: Attest SBOM with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign attest --predicate sbom-systemd.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+
+  build-dind:
+    needs: build-systemd
+    runs-on: warp-ubuntu-latest-x64-4x
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set image name
+        id: image
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Configure WarpBuild Docker Builder
+        uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
+        with:
+          profile-name: default
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          tags: |
+            # Set dind tag for master branch
+            type=raw,value=dind,enable=${{ github.ref == 'refs/heads/master' }}
+            # Set version tag for releases (e.g., dind-v0.1.0)
+            type=semver,pattern=dind-{{version}},enable=${{ github.event_name == 'release' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: images/dind
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ needs.build-systemd.outputs.digest }}
+
+      - name: Generate SBOM with Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-dind.spdx.json
+          artifact-name: dind-image.spdx.json
+          upload-release-assets: true
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: v3.0.3
+
+      - name: Sign image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+
+      - name: Attest SBOM with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign attest --predicate sbom-dind.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+
+      - name: Output summary
         if: github.event_name != 'pull_request'
         run: |
-          echo "## Base Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "## Container Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** \`${{ env.REGISTRY }}/${{ steps.image.outputs.name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Variants:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`:base\` - Minimal with agent CLIs and version managers" >> $GITHUB_STEP_SUMMARY
+          echo "- \`:systemd\` - Adds systemd init system" >> $GITHUB_STEP_SUMMARY
+          echo "- \`:dind\` - Adds Docker-in-Docker support" >> $GITHUB_STEP_SUMMARY

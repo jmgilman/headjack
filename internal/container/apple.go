@@ -52,6 +52,9 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 	// Add custom flags from config
 	args = append(args, r.config.Flags...)
 
+	// Add image-specific flags (e.g., from image labels)
+	args = append(args, cfg.Flags...)
+
 	for _, m := range cfg.Mounts {
 		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
 		if m.ReadOnly {
@@ -65,6 +68,13 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 	}
 
 	args = append(args, cfg.Image)
+
+	// Add init command (default to "sleep infinity" if not specified)
+	initCmd := cfg.Init
+	if initCmd == "" {
+		initCmd = "sleep infinity"
+	}
+	args = append(args, strings.Fields(initCmd)...)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",

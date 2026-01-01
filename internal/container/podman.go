@@ -43,14 +43,17 @@ func podmanError(operation string, result *exec.Result, err error) error {
 }
 
 func (r *podmanRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
-	args := []string{"run", "--detach", "--name", cfg.Name, "--systemd=always"}
+	args := []string{"run", "--detach", "--name", cfg.Name}
 
 	if r.config.Privileged {
 		args = append(args, "--privileged")
 	}
 
-	// Add custom flags from config
+	// Add custom flags from runtime config
 	args = append(args, r.config.Flags...)
+
+	// Add image-specific flags (e.g., --systemd=always from image labels)
+	args = append(args, cfg.Flags...)
 
 	for _, m := range cfg.Mounts {
 		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
@@ -65,6 +68,13 @@ func (r *podmanRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, er
 	}
 
 	args = append(args, cfg.Image)
+
+	// Add init command (default to "sleep infinity" if not specified)
+	initCmd := cfg.Init
+	if initCmd == "" {
+		initCmd = "sleep infinity"
+	}
+	args = append(args, strings.Fields(initCmd)...)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "podman",

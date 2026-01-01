@@ -55,6 +55,8 @@ type RunConfig struct {
 	Image  string   // OCI image reference (required)
 	Mounts []Mount  // Volume mounts
 	Env    []string // Environment variables (KEY=VALUE format)
+	Init   string   // Init command to run as PID 1 (default: "sleep infinity")
+	Flags  []string // Runtime-specific flags (e.g., "--systemd=always" for Podman)
 }
 
 // ExecConfig configures command execution in a container.
@@ -82,7 +84,7 @@ type ListFilter struct {
 //go:generate go run github.com/matryer/moq@latest -pkg mocks -out mocks/runtime.go . Runtime
 type Runtime interface {
 	// Run creates and starts a new container.
-	// The container runs with systemd as init and stays running until stopped.
+	// The container runs the Init command (default: "sleep infinity") to stay alive.
 	// Returns ErrAlreadyExists if a container with the same name exists.
 	Run(ctx context.Context, cfg *RunConfig) (*Container, error)
 

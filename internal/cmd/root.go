@@ -17,10 +17,14 @@ import (
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
+	"github.com/jmgilman/headjack/internal/registry"
 )
 
 // baseDeps lists the external binaries that must always be available.
 var baseDeps = []string{"git"}
+
+// runtimeNameApple is the runtime name for Apple's container framework.
+const runtimeNameApple = "apple"
 
 // mgr is the instance manager, initialized in PersistentPreRunE.
 var mgr *instance.Manager
@@ -124,7 +128,7 @@ func checkDependencies() error {
 
 // getRuntimeBinary returns the binary name for the configured runtime.
 func getRuntimeBinary() string {
-	if appConfig != nil && appConfig.Runtime.Name == "apple" {
+	if appConfig != nil && appConfig.Runtime.Name == runtimeNameApple {
 		return "container"
 	}
 	// Default to podman
@@ -164,7 +168,7 @@ func initManager(muxOverride string) error {
 		runtimeName = appConfig.Runtime.Name
 	}
 	switch runtimeName {
-	case "apple":
+	case runtimeNameApple:
 		appleCfg := container.AppleConfig{}
 		if appConfig != nil {
 			appleCfg.Privileged = appConfig.Runtime.Privileged
@@ -198,9 +202,22 @@ func initManager(muxOverride string) error {
 		mux = multiplexer.NewTmux(executor)
 	}
 
-	mgr = instance.NewManager(store, runtime, opener, mux, instance.ManagerConfig{
+	// Create registry client for fetching image metadata
+	regClient := registry.NewClient(registry.ClientConfig{})
+
+	// Map runtime name to RuntimeType
+	var runtimeType instance.RuntimeType
+	switch runtimeName {
+	case runtimeNameApple:
+		runtimeType = instance.RuntimeApple
+	default:
+		runtimeType = instance.RuntimePodman
+	}
+
+	mgr = instance.NewManager(store, runtime, opener, mux, regClient, instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
 		LogsDir:      logsDir,
+		RuntimeType:  runtimeType,
 	})
 
 	return nil

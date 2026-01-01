@@ -162,8 +162,6 @@ RUN keyring=/usr/share/keyrings/docker-archive-keyring.gpg && \
     docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/* /tmp/docker.gpg "${tmpdir}"
 
-# Enable Docker to start with systemd
-RUN systemctl enable docker
 
 # =============================================================================
 # Node.js (required for Agent CLIs)
@@ -303,16 +301,19 @@ RUN { \
 # systemd Configuration
 # =============================================================================
 
+# hadolint ignore=DL3002
 USER root
 
-# Clean up systemd services that don't make sense in a container
+# Clean up systemd services that don't make sense in a container,
+# then enable Docker (must be after cleanup to preserve the symlink)
 RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
     /etc/systemd/system/*.wants/* \
     /lib/systemd/system/local-fs.target.wants/* \
     /lib/systemd/system/sockets.target.wants/*udev* \
     /lib/systemd/system/sockets.target.wants/*initctl* \
     /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
-    /lib/systemd/system/systemd-update-utmp*
+    /lib/systemd/system/systemd-update-utmp* && \
+    systemctl enable docker
 
 # Use systemd as init
 STOPSIGNAL SIGRTMIN+3
@@ -320,8 +321,7 @@ STOPSIGNAL SIGRTMIN+3
 # Volume for cgroups (required for systemd)
 VOLUME ["/sys/fs/cgroup"]
 
-# Default to the developer user
-USER $USERNAME
+# Run as root (systemd requires root, and agents need full control)
 WORKDIR /home/$USERNAME
 
 # systemd as init system

@@ -69,6 +69,9 @@ Note: Installation methods may vary as these tools evolve. The image build proce
 - `make`
 - `build-essential`
 
+**Terminal Multiplexer:**
+- `zellij` - Session management for CLI agents
+
 ### Language Version Managers
 
 Rather than pre-installing specific language versions, the image includes version managers that allow users to install the versions they need:

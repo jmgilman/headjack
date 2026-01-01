@@ -12,24 +12,25 @@ import (
 	"github.com/jmgilman/headjack/internal/exec/mocks"
 )
 
-func TestNewAppleRuntime(t *testing.T) {
+func TestNewPodmanRuntime(t *testing.T) {
 	mockExec := &mocks.ExecutorMock{}
-	runtime := NewAppleRuntime(mockExec, AppleConfig{})
+	runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 
 	require.NotNil(t, runtime)
 }
 
-func TestAppleRuntime_Run(t *testing.T) {
+func TestPodmanRuntime_Run(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("creates container successfully", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				assert.Equal(t, "container", opts.Name)
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Equal(t, "podman", opts.Name)
 				assert.Contains(t, opts.Args, "run")
 				assert.Contains(t, opts.Args, "--detach")
 				assert.Contains(t, opts.Args, "--name")
 				assert.Contains(t, opts.Args, "test-container")
+				assert.Contains(t, opts.Args, "--systemd=always")
 				assert.Contains(t, opts.Args, "ubuntu:24.04")
 
 				return &exec.Result{
@@ -39,7 +40,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		container, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test-container",
 			Image: "ubuntu:24.04",
@@ -64,7 +65,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{Privileged: true})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{Privileged: true})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
@@ -86,7 +87,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{
 			Flags: []string{"--memory=2g", "--cpus=2"},
 		})
 		_, err := runtime.Run(ctx, &RunConfig{
@@ -99,7 +100,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes volume mounts", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-v")
 				assert.Contains(t, opts.Args, "/host/path:/container/path")
 
@@ -110,7 +111,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
@@ -124,7 +125,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes read-only mount flag", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "/host:/container:ro")
 
 				return &exec.Result{
@@ -134,7 +135,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
@@ -148,7 +149,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes environment variables", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-e")
 				assert.Contains(t, opts.Args, "FOO=bar")
 
@@ -159,7 +160,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
@@ -171,15 +172,15 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("returns ErrAlreadyExists when container exists", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
-					Stderr:   []byte("container already exists"),
-					ExitCode: 1,
-				}, errors.New("exit code 1")
+					Stderr:   []byte("name already in use"),
+					ExitCode: 125,
+				}, errors.New("exit code 125")
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "existing",
 			Image: "ubuntu",
@@ -189,22 +190,22 @@ func TestAppleRuntime_Run(t *testing.T) {
 	})
 }
 
-func TestAppleRuntime_Exec(t *testing.T) {
+func TestPodmanRuntime_Exec(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("executes command in running container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
-					// Get call - Apple Container format
+					// Get call - Podman format
 					return &exec.Result{
-						Stdout: []byte(`[{"status":"running","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+						Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"running"},"Config":{"Image":"ubuntu"}}]`),
 					}, nil
 				}
 				// Exec call
-				assert.Equal(t, "container", opts.Name)
+				assert.Equal(t, "podman", opts.Name)
 				assert.Contains(t, opts.Args, "exec")
 				assert.Contains(t, opts.Args, "abc123")
 				assert.Contains(t, opts.Args, "bash")
@@ -213,7 +214,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Exec(ctx, "abc123", ExecConfig{
 			Command: []string{"bash"},
 		})
@@ -224,12 +225,12 @@ func TestAppleRuntime_Exec(t *testing.T) {
 	t.Run("includes workdir when specified", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
-					// Get call - Apple Container format
+					// Get call - Podman format
 					return &exec.Result{
-						Stdout: []byte(`[{"status":"running","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+						Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"running"},"Config":{"Image":"ubuntu"}}]`),
 					}, nil
 				}
 				assert.Contains(t, opts.Args, "-w")
@@ -239,7 +240,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Exec(ctx, "abc123", ExecConfig{
 			Command: []string{"ls"},
 			Workdir: "/app",
@@ -250,15 +251,15 @@ func TestAppleRuntime_Exec(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
-					Stderr:   []byte("container not found"),
-					ExitCode: 1,
-				}, errors.New("exit code 1")
+					Stderr:   []byte("no such container"),
+					ExitCode: 125,
+				}, errors.New("exit code 125")
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Exec(ctx, "missing", ExecConfig{
 			Command: []string{"bash"},
 		})
@@ -268,15 +269,15 @@ func TestAppleRuntime_Exec(t *testing.T) {
 
 	t.Run("returns ErrNotRunning when container stopped", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				// Get call - Apple Container format with stopped status
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				// Get call - Podman format with exited status
 				return &exec.Result{
-					Stdout: []byte(`[{"status":"stopped","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+					Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"exited"},"Config":{"Image":"ubuntu"}}]`),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Exec(ctx, "abc123", ExecConfig{
 			Command: []string{"bash"},
 		})
@@ -285,29 +286,29 @@ func TestAppleRuntime_Exec(t *testing.T) {
 	})
 }
 
-func TestAppleRuntime_Stop(t *testing.T) {
+func TestPodmanRuntime_Stop(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("stops running container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
-					// Get call - Apple Container format
+					// Get call - Podman format
 					return &exec.Result{
-						Stdout: []byte(`[{"status":"running","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+						Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"running"},"Config":{"Image":"ubuntu"}}]`),
 					}, nil
 				}
 				// Stop call
-				assert.Equal(t, "container", opts.Name)
+				assert.Equal(t, "podman", opts.Name)
 				assert.Equal(t, []string{"stop", "abc123"}, opts.Args)
 
 				return &exec.Result{ExitCode: 0}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Stop(ctx, "abc123")
 
 		require.NoError(t, err)
@@ -317,16 +318,16 @@ func TestAppleRuntime_Stop(t *testing.T) {
 	t.Run("no-op for already stopped container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				callCount++
-				// Get call - Apple Container format with stopped status
+				// Get call - Podman format with exited status
 				return &exec.Result{
-					Stdout: []byte(`[{"status":"stopped","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+					Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"exited"},"Config":{"Image":"ubuntu"}}]`),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Stop(ctx, "abc123")
 
 		require.NoError(t, err)
@@ -335,35 +336,84 @@ func TestAppleRuntime_Stop(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
-					Stderr:   []byte("container not found"),
-					ExitCode: 1,
-				}, errors.New("exit code 1")
+					Stderr:   []byte("no such container"),
+					ExitCode: 125,
+				}, errors.New("exit code 125")
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Stop(ctx, "missing")
 
 		assert.ErrorIs(t, err, ErrNotFound)
 	})
 }
 
-func TestAppleRuntime_Remove(t *testing.T) {
+func TestPodmanRuntime_Start(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("starts stopped container", func(t *testing.T) {
+		callCount := 0
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				callCount++
+				if callCount == 1 {
+					// Get call - Podman format with exited status
+					return &exec.Result{
+						Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"exited"},"Config":{"Image":"ubuntu"}}]`),
+					}, nil
+				}
+				// Start call
+				assert.Equal(t, "podman", opts.Name)
+				assert.Equal(t, []string{"start", "abc123"}, opts.Args)
+
+				return &exec.Result{ExitCode: 0}, nil
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		err := runtime.Start(ctx, "abc123")
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, callCount)
+	})
+
+	t.Run("no-op for already running container", func(t *testing.T) {
+		callCount := 0
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				callCount++
+				// Get call - Podman format
+				return &exec.Result{
+					Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"running"},"Config":{"Image":"ubuntu"}}]`),
+				}, nil
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		err := runtime.Start(ctx, "abc123")
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, callCount) // Only Get call, no Start call
+	})
+}
+
+func TestPodmanRuntime_Remove(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("removes container", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				assert.Equal(t, "container", opts.Name)
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Equal(t, "podman", opts.Name)
 				assert.Equal(t, []string{"rm", "abc123"}, opts.Args)
 
 				return &exec.Result{ExitCode: 0}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Remove(ctx, "abc123")
 
 		require.NoError(t, err)
@@ -371,7 +421,7 @@ func TestAppleRuntime_Remove(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("no such container"),
 					ExitCode: 1,
@@ -379,87 +429,103 @@ func TestAppleRuntime_Remove(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Remove(ctx, "missing")
 
 		assert.ErrorIs(t, err, ErrNotFound)
 	})
 }
 
-func TestAppleRuntime_Get(t *testing.T) {
+func TestPodmanRuntime_Get(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns container info", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				assert.Equal(t, "container", opts.Name)
-				assert.Contains(t, opts.Args, "inspect")
-				assert.Contains(t, opts.Args, "abc123")
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Equal(t, "podman", opts.Name)
+				assert.Equal(t, []string{"inspect", "abc123"}, opts.Args)
 
-				// Apple Container format
+				// Podman format with RFC3339Nano timestamp
 				return &exec.Result{
-					Stdout: []byte(`[{"status":"running","configuration":{"id":"abc123def456","image":{"reference":"ubuntu:24.04"}}}]`),
+					Stdout: []byte(`[{"Id":"abc123def456","Name":"/test-container","State":{"Status":"running"},"Config":{"Image":"ubuntu:24.04"},"ImageName":"ubuntu:24.04","Created":"2024-01-15T10:30:00.123456789Z"}]`),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		container, err := runtime.Get(ctx, "abc123")
 
 		require.NoError(t, err)
 		assert.Equal(t, "abc123def456", container.ID)
-		assert.Equal(t, "abc123def456", container.Name) // Name is set to ID in Apple Container format
+		assert.Equal(t, "test-container", container.Name) // Leading "/" is stripped
 		assert.Equal(t, "ubuntu:24.04", container.Image)
 		assert.Equal(t, StatusRunning, container.Status)
 	})
 
 	t.Run("parses stopped state", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				// Apple Container format with exited status
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				// Podman format with exited status
 				return &exec.Result{
-					Stdout: []byte(`[{"status":"exited","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
+					Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"exited"},"Config":{"Image":"ubuntu"}}]`),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		container, err := runtime.Get(ctx, "abc123")
 
 		require.NoError(t, err)
 		assert.Equal(t, StatusStopped, container.Status)
 	})
 
-	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
+	t.Run("parses RFC3339 timestamp fallback", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				// Podman format with RFC3339 timestamp (no nanoseconds)
 				return &exec.Result{
-					Stderr:   []byte("not found"),
-					ExitCode: 1,
-				}, errors.New("exit code 1")
+					Stdout: []byte(`[{"Id":"abc123","Name":"test","State":{"Status":"running"},"Config":{"Image":"ubuntu"},"Created":"2024-01-15T10:30:00Z"}]`),
+				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		container, err := runtime.Get(ctx, "abc123")
+
+		require.NoError(t, err)
+		assert.False(t, container.CreatedAt.IsZero())
+	})
+
+	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				return &exec.Result{
+					Stderr:   []byte("no such container"),
+					ExitCode: 125,
+				}, errors.New("exit code 125")
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.Get(ctx, "missing")
 
 		assert.ErrorIs(t, err, ErrNotFound)
 	})
 }
 
-func TestAppleRuntime_List(t *testing.T) {
+func TestPodmanRuntime_List(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns empty list", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stdout: []byte("[]"),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		containers, err := runtime.List(ctx, ListFilter{})
 
 		require.NoError(t, err)
@@ -468,29 +534,30 @@ func TestAppleRuntime_List(t *testing.T) {
 
 	t.Run("returns container list", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				// Apple Container format
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
+				// Podman ps --format json output
 				return &exec.Result{
-					Stdout: []byte(`[{"status":"running","configuration":{"id":"abc","image":{"reference":"ubuntu"}}},{"status":"stopped","configuration":{"id":"def","image":{"reference":"alpine"}}}]`),
+					Stdout: []byte(`[{"Id":"abc","Names":["container1"],"Image":"ubuntu","State":"running","Created":1705320600},{"Id":"def","Names":["container2"],"Image":"alpine","State":"exited","Created":1705320500}]`),
 				}, nil
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		containers, err := runtime.List(ctx, ListFilter{})
 
 		require.NoError(t, err)
 		require.Len(t, containers, 2)
 		assert.Equal(t, "abc", containers[0].ID)
-		assert.Equal(t, "abc", containers[0].Name) // Name is set to ID in Apple Container format
+		assert.Equal(t, "container1", containers[0].Name)
 		assert.Equal(t, StatusRunning, containers[0].Status)
 		assert.Equal(t, "def", containers[1].ID)
+		assert.Equal(t, "container2", containers[1].Name)
 		assert.Equal(t, StatusStopped, containers[1].Status)
 	})
 
 	t.Run("includes name filter", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "--filter")
 				assert.Contains(t, opts.Args, "name=my-prefix")
 
@@ -498,20 +565,38 @@ func TestAppleRuntime_List(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		_, err := runtime.List(ctx, ListFilter{Name: "my-prefix"})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("uses ps -a for listing", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Contains(t, opts.Args, "ps")
+				assert.Contains(t, opts.Args, "-a")
+				assert.Contains(t, opts.Args, "--format")
+				assert.Contains(t, opts.Args, "json")
+
+				return &exec.Result{Stdout: []byte("[]")}, nil
+			},
+		}
+
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
+		_, err := runtime.List(ctx, ListFilter{})
 
 		require.NoError(t, err)
 	})
 }
 
-func TestAppleRuntime_Build(t *testing.T) {
+func TestPodmanRuntime_Build(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("builds image", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
-				assert.Equal(t, "container", opts.Name)
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Equal(t, "podman", opts.Name)
 				assert.Contains(t, opts.Args, "build")
 				assert.Contains(t, opts.Args, "-t")
 				assert.Contains(t, opts.Args, "myimage:latest")
@@ -521,7 +606,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Build(ctx, &BuildConfig{
 			Context: "/build/context",
 			Tag:     "myimage:latest",
@@ -532,7 +617,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 
 	t.Run("includes dockerfile path", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-f")
 				assert.Contains(t, opts.Args, "custom.Dockerfile")
 
@@ -540,7 +625,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Build(ctx, &BuildConfig{
 			Context:    "/build/context",
 			Dockerfile: "custom.Dockerfile",
@@ -552,7 +637,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 
 	t.Run("returns ErrBuildFailed on failure", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, _ *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("build error: missing base image"),
 					ExitCode: 1,
@@ -560,7 +645,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		runtime := NewPodmanRuntime(mockExec, PodmanConfig{})
 		err := runtime.Build(ctx, &BuildConfig{
 			Context: "/build/context",
 			Tag:     "myimage:latest",

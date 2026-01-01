@@ -26,6 +26,9 @@ var _ container.Runtime = &RuntimeMock{}
 //			ExecFunc: func(ctx context.Context, id string, cfg container.ExecConfig) error {
 //				panic("mock out the Exec method")
 //			},
+//			ExecCommandFunc: func() []string {
+//				panic("mock out the ExecCommand method")
+//			},
 //			GetFunc: func(ctx context.Context, id string) (*container.Container, error) {
 //				panic("mock out the Get method")
 //			},
@@ -56,6 +59,9 @@ type RuntimeMock struct {
 
 	// ExecFunc mocks the Exec method.
 	ExecFunc func(ctx context.Context, id string, cfg container.ExecConfig) error
+
+	// ExecCommandFunc mocks the ExecCommand method.
+	ExecCommandFunc func() []string
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, id string) (*container.Container, error)
@@ -92,6 +98,9 @@ type RuntimeMock struct {
 			ID string
 			// Cfg is the cfg argument value.
 			Cfg container.ExecConfig
+		}
+		// ExecCommand holds details about calls to the ExecCommand method.
+		ExecCommand []struct {
 		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
@@ -136,14 +145,15 @@ type RuntimeMock struct {
 			ID string
 		}
 	}
-	lockBuild  sync.RWMutex
-	lockExec   sync.RWMutex
-	lockGet    sync.RWMutex
-	lockList   sync.RWMutex
-	lockRemove sync.RWMutex
-	lockRun    sync.RWMutex
-	lockStart  sync.RWMutex
-	lockStop   sync.RWMutex
+	lockBuild       sync.RWMutex
+	lockExec        sync.RWMutex
+	lockExecCommand sync.RWMutex
+	lockGet         sync.RWMutex
+	lockList        sync.RWMutex
+	lockRemove      sync.RWMutex
+	lockRun         sync.RWMutex
+	lockStart       sync.RWMutex
+	lockStop        sync.RWMutex
 }
 
 // Build calls BuildFunc.
@@ -219,6 +229,33 @@ func (mock *RuntimeMock) ExecCalls() []struct {
 	mock.lockExec.RLock()
 	calls = mock.calls.Exec
 	mock.lockExec.RUnlock()
+	return calls
+}
+
+// ExecCommand calls ExecCommandFunc.
+func (mock *RuntimeMock) ExecCommand() []string {
+	if mock.ExecCommandFunc == nil {
+		panic("RuntimeMock.ExecCommandFunc: method is nil but Runtime.ExecCommand was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockExecCommand.Lock()
+	mock.calls.ExecCommand = append(mock.calls.ExecCommand, callInfo)
+	mock.lockExecCommand.Unlock()
+	return mock.ExecCommandFunc()
+}
+
+// ExecCommandCalls gets all the calls that were made to ExecCommand.
+// Check the length with:
+//
+//	len(mockedRuntime.ExecCommandCalls())
+func (mock *RuntimeMock) ExecCommandCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockExecCommand.RLock()
+	calls = mock.calls.ExecCommand
+	mock.lockExecCommand.RUnlock()
 	return calls
 }
 

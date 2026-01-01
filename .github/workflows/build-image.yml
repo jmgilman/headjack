@@ -38,6 +38,8 @@ jobs:
 
   build:
     needs: lint
+    # Skip build for derivative images on PRs - base images aren't available in registry
+    if: github.event_name != 'pull_request' || inputs.base_variant == ''
     runs-on: warp-ubuntu-latest-x64-4x
     permissions:
       actions: read

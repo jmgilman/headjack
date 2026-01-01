@@ -510,7 +510,9 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 		return nil, fmt.Errorf("format session name: %w", err)
 	}
 
-	if _, logErr := m.logPaths.EnsureSessionLog(instanceID, sessionID); logErr != nil {
+	// Get the log path for output capture
+	logPath, logErr := m.logPaths.EnsureSessionLog(instanceID, sessionID)
+	if logErr != nil {
 		return nil, fmt.Errorf("ensure session log: %w", logErr)
 	}
 
@@ -519,11 +521,14 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 		sessionType = catalog.SessionTypeShell
 	}
 
+	// Create multiplexer session with logging
+	// Use the worktree path as cwd (host path, since zellij runs on host)
 	_, err = m.mux.CreateSession(ctx, &multiplexer.CreateSessionOpts{
 		Name:    muxSessionName,
 		Command: cfg.Command,
-		Cwd:     "/workspace",
+		Cwd:     entry.Worktree,
 		Env:     cfg.Env,
+		LogPath: logPath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create multiplexer session: %w", err)

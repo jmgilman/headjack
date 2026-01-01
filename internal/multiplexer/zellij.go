@@ -46,6 +46,10 @@ func (z *zellij) CreateSession(ctx context.Context, opts *CreateSessionOpts) (*S
 		}
 	}
 
+	// Build the inner command that will run in the session
+	// If LogPath is set, wrap with script to capture output
+	innerCmd := z.buildInnerCommand(opts)
+
 	// Build the zellij command for background execution
 	// We use shell to start zellij in the background (detached mode)
 	zellijCmd := "zellij --session " + shellEscape(opts.Name)
@@ -53,6 +57,9 @@ func (z *zellij) CreateSession(ctx context.Context, opts *CreateSessionOpts) (*S
 	if opts.Cwd != "" {
 		zellijCmd += " --cwd " + shellEscape(opts.Cwd)
 	}
+
+	// Add the inner command after --
+	zellijCmd += " -- " + innerCmd
 
 	// Start zellij in background using shell
 	// The session will persist after the shell command returns
@@ -216,6 +223,35 @@ func (z *zellij) KillSession(ctx context.Context, sessionName string) error {
 	}
 
 	return nil
+}
+
+// buildInnerCommand constructs the command to run inside the Zellij session.
+// If LogPath is set, wraps the command with script for output capture.
+// If Command is empty, defaults to /bin/bash.
+func (z *zellij) buildInnerCommand(opts *CreateSessionOpts) string {
+	// Determine the base command
+	baseCmd := "/bin/bash"
+	if len(opts.Command) > 0 {
+		// Build command string from slice
+		var parts []string
+		for _, arg := range opts.Command {
+			parts = append(parts, shellEscape(arg))
+		}
+		baseCmd = strings.Join(parts, " ")
+	}
+
+	// If no log path, just return the base command
+	if opts.LogPath == "" {
+		return baseCmd
+	}
+
+	// Wrap with script for output capture
+	// -q: quiet mode (no start/end messages)
+	// -a: append to file
+	// Uses bash -c to run the command and keep the session alive
+	return fmt.Sprintf("script -q -a %s bash -c %s",
+		shellEscape(opts.LogPath),
+		shellEscape(baseCmd))
 }
 
 // shellEscape escapes a string for safe use in shell commands.

@@ -37,6 +37,7 @@ func TestZellij_CreateSession(t *testing.T) {
 					// Shell command to create session in background
 					assert.Equal(t, "sh", opts.Name)
 					assert.Contains(t, opts.Args[1], "zellij --session 'test-session'")
+					assert.Contains(t, opts.Args[1], "-- /bin/bash")
 					assert.Contains(t, opts.Args[1], "&")
 					return &exec.Result{ExitCode: 0}, nil
 				case 3:
@@ -426,4 +427,145 @@ func TestShellEscape(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestZellij_BuildInnerCommand(t *testing.T) {
+	z := &zellij{}
+
+	t.Run("defaults to bash with no options", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{})
+		assert.Equal(t, "/bin/bash", result)
+	})
+
+	t.Run("uses provided command", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{
+			Command: []string{"vim", "file.txt"},
+		})
+		assert.Equal(t, "'vim' 'file.txt'", result)
+	})
+
+	t.Run("escapes command arguments", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{
+			Command: []string{"echo", "hello world"},
+		})
+		assert.Equal(t, "'echo' 'hello world'", result)
+	})
+
+	t.Run("wraps with script when log path set", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{
+			LogPath: "/var/log/session.log",
+		})
+		assert.Contains(t, result, "script -q -a")
+		assert.Contains(t, result, "/var/log/session.log")
+		assert.Contains(t, result, "/bin/bash")
+	})
+
+	t.Run("wraps command with script when log path set", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{
+			Command: []string{"claude-code"},
+			LogPath: "/tmp/logs/session.log",
+		})
+		assert.Contains(t, result, "script -q -a")
+		assert.Contains(t, result, "/tmp/logs/session.log")
+		assert.Contains(t, result, "claude-code")
+	})
+
+	t.Run("escapes log path with spaces", func(t *testing.T) {
+		result := z.buildInnerCommand(&CreateSessionOpts{
+			LogPath: "/path/with spaces/log.txt",
+		})
+		assert.Contains(t, result, "'/path/with spaces/log.txt'")
+	})
+}
+
+func TestZellij_CreateSession_WithCommand(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("passes command to inner command", func(t *testing.T) {
+		callCount := 0
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				callCount++
+				switch callCount {
+				case 1:
+					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
+				case 2:
+					// Shell command should contain the command after --
+					assert.Contains(t, opts.Args[1], "-- 'claude-code' '--help'")
+					return &exec.Result{ExitCode: 0}, nil
+				case 3:
+					return &exec.Result{Stdout: []byte("test-session\n"), ExitCode: 0}, nil
+				}
+				return &exec.Result{}, nil
+			},
+		}
+
+		z := NewZellij(mockExec)
+		_, err := z.CreateSession(ctx, &CreateSessionOpts{
+			Name:    "test-session",
+			Command: []string{"claude-code", "--help"},
+		})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("wraps with script when log path provided", func(t *testing.T) {
+		callCount := 0
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				callCount++
+				switch callCount {
+				case 1:
+					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
+				case 2:
+					// Shell command should contain script wrapper
+					assert.Contains(t, opts.Args[1], "script -q -a")
+					assert.Contains(t, opts.Args[1], "/tmp/session.log")
+					return &exec.Result{ExitCode: 0}, nil
+				case 3:
+					return &exec.Result{Stdout: []byte("test-session\n"), ExitCode: 0}, nil
+				}
+				return &exec.Result{}, nil
+			},
+		}
+
+		z := NewZellij(mockExec)
+		_, err := z.CreateSession(ctx, &CreateSessionOpts{
+			Name:    "test-session",
+			LogPath: "/tmp/session.log",
+		})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("combines command and log path", func(t *testing.T) {
+		callCount := 0
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				callCount++
+				switch callCount {
+				case 1:
+					return &exec.Result{Stdout: []byte(""), ExitCode: 0}, nil
+				case 2:
+					// Should have script wrapper with command
+					assert.Contains(t, opts.Args[1], "script -q -a")
+					assert.Contains(t, opts.Args[1], "/var/log/test.log")
+					assert.Contains(t, opts.Args[1], "my-cmd")
+					return &exec.Result{ExitCode: 0}, nil
+				case 3:
+					return &exec.Result{Stdout: []byte("test-session\n"), ExitCode: 0}, nil
+				}
+				return &exec.Result{}, nil
+			},
+		}
+
+		z := NewZellij(mockExec)
+		_, err := z.CreateSession(ctx, &CreateSessionOpts{
+			Name:    "test-session",
+			Command: []string{"my-cmd"},
+			LogPath: "/var/log/test.log",
+		})
+
+		require.NoError(t, err)
+	})
 }

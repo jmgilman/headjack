@@ -663,12 +663,14 @@ func TestManager_CreateSession(t *testing.T) {
 
 	t.Run("creates session successfully", func(t *testing.T) {
 		logsDir := t.TempDir()
+		worktreeDir := t.TempDir()
 
 		store := &catalogmocks.StoreMock{
 			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
 				return &catalog.Entry{
 					ID:          "abc12345", // 8 chars, no hyphens
 					ContainerID: "container-123",
+					Worktree:    worktreeDir,
 					Sessions:    []catalog.Session{},
 				}, nil
 			},
@@ -691,7 +693,9 @@ func TestManager_CreateSession(t *testing.T) {
 		mux := &muxmocks.MultiplexerMock{
 			CreateSessionFunc: func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
 				assert.Contains(t, opts.Name, "hjk-abc12345-")
-				assert.Equal(t, "/workspace", opts.Cwd)
+				assert.Equal(t, worktreeDir, opts.Cwd)
+				assert.NotEmpty(t, opts.LogPath, "LogPath should be set for output capture")
+				assert.Contains(t, opts.LogPath, logsDir)
 				return &multiplexer.Session{Name: opts.Name}, nil
 			},
 		}
@@ -711,12 +715,14 @@ func TestManager_CreateSession(t *testing.T) {
 
 	t.Run("creates session with custom name", func(t *testing.T) {
 		logsDir := t.TempDir()
+		worktreeDir := t.TempDir()
 
 		store := &catalogmocks.StoreMock{
 			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
 				return &catalog.Entry{
 					ID:          "abc12345",
 					ContainerID: "container-123",
+					Worktree:    worktreeDir,
 					Sessions:    []catalog.Session{},
 				}, nil
 			},

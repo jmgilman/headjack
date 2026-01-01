@@ -38,6 +38,7 @@ type CreateSessionOpts struct {
 	Command []string // Initial command to run (optional, defaults to shell)
 	Cwd     string   // Working directory (optional)
 	Env     []string // Environment variables (KEY=VALUE format)
+	LogPath string   // Path to log file for capturing session output (optional)
 }
 
 // Multiplexer provides terminal multiplexer operations.

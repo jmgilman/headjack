@@ -20,7 +20,7 @@ func TestLoader_Load_CreatesDefaultIfMissing(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check defaults
-	assert.Equal(t, "", cfg.Default.Agent)
+	assert.Empty(t, cfg.Default.Agent)
 	assert.Equal(t, defaultBaseImage, cfg.Default.BaseImage)
 	assert.Contains(t, cfg.Storage.Worktrees, "headjack")
 	assert.Contains(t, cfg.Storage.Catalog, "catalog.json")
@@ -37,7 +37,7 @@ func TestLoader_Load_ReadsExistingConfig(t *testing.T) {
 
 	// Create config manually
 	configDir := filepath.Join(tmpHome, ".config", "headjack")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o750))
 
 	configContent := `
 default:
@@ -55,7 +55,7 @@ agents:
 	require.NoError(t, os.WriteFile(
 		filepath.Join(configDir, "config.yaml"),
 		[]byte(configContent),
-		0644,
+		0o600,
 	))
 
 	loader, err := NewLoader()
@@ -185,7 +185,7 @@ func TestConfig_Validate(t *testing.T) {
 			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Agent")
 	})
 
@@ -196,7 +196,7 @@ func TestConfig_Validate(t *testing.T) {
 			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing required base_image", func(t *testing.T) {
@@ -205,7 +205,7 @@ func TestConfig_Validate(t *testing.T) {
 			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "BaseImage")
 	})
 }

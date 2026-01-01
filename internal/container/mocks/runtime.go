@@ -5,8 +5,9 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/container"
 	"sync"
+
+	"github.com/jmgilman/headjack/internal/container"
 )
 
 // Ensure, that RuntimeMock does implement container.Runtime.
@@ -19,7 +20,7 @@ var _ container.Runtime = &RuntimeMock{}
 //
 //		// make and configure a mocked container.Runtime
 //		mockedRuntime := &RuntimeMock{
-//			BuildFunc: func(ctx context.Context, cfg container.BuildConfig) error {
+//			BuildFunc: func(ctx context.Context, cfg *container.BuildConfig) error {
 //				panic("mock out the Build method")
 //			},
 //			ExecFunc: func(ctx context.Context, id string, cfg container.ExecConfig) error {
@@ -34,7 +35,7 @@ var _ container.Runtime = &RuntimeMock{}
 //			RemoveFunc: func(ctx context.Context, id string) error {
 //				panic("mock out the Remove method")
 //			},
-//			RunFunc: func(ctx context.Context, cfg container.RunConfig) (*container.Container, error) {
+//			RunFunc: func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 //				panic("mock out the Run method")
 //			},
 //			StopFunc: func(ctx context.Context, id string) error {
@@ -48,7 +49,7 @@ var _ container.Runtime = &RuntimeMock{}
 //	}
 type RuntimeMock struct {
 	// BuildFunc mocks the Build method.
-	BuildFunc func(ctx context.Context, cfg container.BuildConfig) error
+	BuildFunc func(ctx context.Context, cfg *container.BuildConfig) error
 
 	// ExecFunc mocks the Exec method.
 	ExecFunc func(ctx context.Context, id string, cfg container.ExecConfig) error
@@ -63,7 +64,7 @@ type RuntimeMock struct {
 	RemoveFunc func(ctx context.Context, id string) error
 
 	// RunFunc mocks the Run method.
-	RunFunc func(ctx context.Context, cfg container.RunConfig) (*container.Container, error)
+	RunFunc func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error)
 
 	// StopFunc mocks the Stop method.
 	StopFunc func(ctx context.Context, id string) error
@@ -75,7 +76,7 @@ type RuntimeMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Cfg is the cfg argument value.
-			Cfg container.BuildConfig
+			Cfg *container.BuildConfig
 		}
 		// Exec holds details about calls to the Exec method.
 		Exec []struct {
@@ -112,7 +113,7 @@ type RuntimeMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Cfg is the cfg argument value.
-			Cfg container.RunConfig
+			Cfg *container.RunConfig
 		}
 		// Stop holds details about calls to the Stop method.
 		Stop []struct {
@@ -132,13 +133,13 @@ type RuntimeMock struct {
 }
 
 // Build calls BuildFunc.
-func (mock *RuntimeMock) Build(ctx context.Context, cfg container.BuildConfig) error {
+func (mock *RuntimeMock) Build(ctx context.Context, cfg *container.BuildConfig) error {
 	if mock.BuildFunc == nil {
 		panic("RuntimeMock.BuildFunc: method is nil but Runtime.Build was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Cfg container.BuildConfig
+		Cfg *container.BuildConfig
 	}{
 		Ctx: ctx,
 		Cfg: cfg,
@@ -155,11 +156,11 @@ func (mock *RuntimeMock) Build(ctx context.Context, cfg container.BuildConfig) e
 //	len(mockedRuntime.BuildCalls())
 func (mock *RuntimeMock) BuildCalls() []struct {
 	Ctx context.Context
-	Cfg container.BuildConfig
+	Cfg *container.BuildConfig
 } {
 	var calls []struct {
 		Ctx context.Context
-		Cfg container.BuildConfig
+		Cfg *container.BuildConfig
 	}
 	mock.lockBuild.RLock()
 	calls = mock.calls.Build
@@ -316,13 +317,13 @@ func (mock *RuntimeMock) RemoveCalls() []struct {
 }
 
 // Run calls RunFunc.
-func (mock *RuntimeMock) Run(ctx context.Context, cfg container.RunConfig) (*container.Container, error) {
+func (mock *RuntimeMock) Run(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 	if mock.RunFunc == nil {
 		panic("RuntimeMock.RunFunc: method is nil but Runtime.Run was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Cfg container.RunConfig
+		Cfg *container.RunConfig
 	}{
 		Ctx: ctx,
 		Cfg: cfg,
@@ -339,11 +340,11 @@ func (mock *RuntimeMock) Run(ctx context.Context, cfg container.RunConfig) (*con
 //	len(mockedRuntime.RunCalls())
 func (mock *RuntimeMock) RunCalls() []struct {
 	Ctx context.Context
-	Cfg container.RunConfig
+	Cfg *container.RunConfig
 } {
 	var calls []struct {
 		Ctx context.Context
-		Cfg container.RunConfig
+		Cfg *container.RunConfig
 	}
 	mock.lockRun.RLock()
 	calls = mock.calls.Run

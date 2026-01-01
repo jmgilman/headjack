@@ -1,13 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 
-	"github.com/jmgilman/headjack/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	"github.com/jmgilman/headjack/internal/config"
 )
 
 var configCmd = &cobra.Command{
@@ -32,9 +34,12 @@ With two arguments, sets the value for the specified key.`,
 	Args:              cobra.RangeArgs(0, 2),
 	PersistentPreRunE: nil, // Override parent - config command doesn't need manager
 	RunE: func(cmd *cobra.Command, args []string) error {
-		editFlag, _ := cmd.Flags().GetBool("edit")
+		editFlag, err := cmd.Flags().GetBool("edit")
+		if err != nil {
+			return fmt.Errorf("get edit flag: %w", err)
+		}
 		if editFlag {
-			return runEdit()
+			return runEdit(cmd.Context())
 		}
 
 		loader, err := config.NewLoader()
@@ -55,7 +60,7 @@ With two arguments, sets the value for the specified key.`,
 	},
 }
 
-func runEdit() error {
+func runEdit(ctx context.Context) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		return config.ErrNoEditor
@@ -71,7 +76,10 @@ func runEdit() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	editorCmd := exec.Command(editor, loader.Path())
+	// G204: Subprocess launched with variable is intentional here - the editor
+	// command comes from the user's $EDITOR environment variable, which is the
+	// standard Unix convention for specifying the preferred text editor.
+	editorCmd := exec.CommandContext(ctx, editor, loader.Path()) //nolint:gosec
 	editorCmd.Stdin = os.Stdin
 	editorCmd.Stdout = os.Stdout
 	editorCmd.Stderr = os.Stderr

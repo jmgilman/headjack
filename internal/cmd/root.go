@@ -6,6 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/config"
@@ -13,7 +16,6 @@ import (
 	hjexec "github.com/jmgilman/headjack/internal/exec"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
-	"github.com/spf13/cobra"
 )
 
 // requiredDeps lists the external binaries that must be available.
@@ -110,7 +112,10 @@ func initManager() error {
 		catalogPath = appConfig.Storage.Catalog
 	} else {
 		// Fallback to defaults
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("get home directory: %w", err)
+		}
 		worktreesDir = filepath.Join(home, ".local", "share", "headjack", "git")
 		catalogPath = filepath.Join(home, ".local", "share", "headjack", "catalog.json")
 	}
@@ -137,14 +142,16 @@ func formatList(items []string) string {
 	case 2:
 		return items[0] + " and " + items[1]
 	default:
-		result := ""
+		var builder strings.Builder
 		for i, item := range items {
 			if i == len(items)-1 {
-				result += "and " + item
+				builder.WriteString("and ")
+				builder.WriteString(item)
 			} else {
-				result += item + ", "
+				builder.WriteString(item)
+				builder.WriteString(", ")
 			}
 		}
-		return result
+		return builder.String()
 	}
 }

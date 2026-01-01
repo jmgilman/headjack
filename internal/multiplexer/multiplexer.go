@@ -16,11 +16,11 @@ const SessionPrefix = "hjk"
 
 // Sentinel errors for multiplexer operations.
 var (
-	ErrSessionNotFound    = errors.New("session not found")
-	ErrSessionExists      = errors.New("session already exists")
-	ErrAttachFailed       = errors.New("failed to attach to session")
-	ErrCreateFailed       = errors.New("failed to create session")
-	ErrInvalidInstanceID  = errors.New("instance ID cannot contain hyphens")
+	ErrSessionNotFound   = errors.New("session not found")
+	ErrSessionExists     = errors.New("session already exists")
+	ErrAttachFailed      = errors.New("failed to attach to session")
+	ErrCreateFailed      = errors.New("failed to create session")
+	ErrInvalidInstanceID = errors.New("instance ID cannot contain hyphens")
 )
 
 // Session represents a multiplexer session.
@@ -48,7 +48,7 @@ type Multiplexer interface {
 	// The session is created in detached mode and can be attached to later.
 	// Returns ErrSessionExists if a session with the same name already exists.
 	// Returns ErrCreateFailed if session creation fails.
-	CreateSession(ctx context.Context, opts CreateSessionOpts) (*Session, error)
+	CreateSession(ctx context.Context, opts *CreateSessionOpts) (*Session, error)
 
 	// AttachSession attaches to an existing session.
 	// This is a blocking operation that takes over the terminal.
@@ -95,7 +95,7 @@ func ParseSessionName(name string) (instanceID, sessionID string) {
 
 	// Find the second hyphen after the prefix
 	rest := name[4:] // Skip "hjk-"
-	for i := 0; i < len(rest); i++ {
+	for i := range len(rest) {
 		if rest[i] == '-' {
 			instanceID = rest[:i]
 			sessionID = rest[i+1:]

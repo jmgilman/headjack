@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/spf13/cobra"
+
+	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var rmCmd = &cobra.Command{
@@ -31,7 +32,10 @@ WARNING: This deletes uncommitted work in the worktree.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch := args[0]
-		force, _ := cmd.Flags().GetBool("force")
+		force, err := cmd.Flags().GetBool("force")
+		if err != nil {
+			return fmt.Errorf("get force flag: %w", err)
+		}
 
 		// Get current working directory as repo path
 		repoPath, err := os.Getwd()
@@ -63,7 +67,7 @@ WARNING: This deletes uncommitted work in the worktree.`,
 
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response != "y" && response != "yes" {
-				fmt.Println("Cancelled")
+				fmt.Println("Canceled")
 				return nil
 			}
 		}

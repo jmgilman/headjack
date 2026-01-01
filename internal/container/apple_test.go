@@ -17,7 +17,6 @@ func TestNewAppleRuntime(t *testing.T) {
 	runtime := NewAppleRuntime(mockExec)
 
 	require.NotNil(t, runtime)
-	assert.Equal(t, mockExec, runtime.exec)
 }
 
 func TestAppleRuntime_Run(t *testing.T) {
@@ -25,7 +24,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("creates container successfully", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "container", opts.Name)
 				assert.Contains(t, opts.Args, "run")
 				assert.Contains(t, opts.Args, "--detach")
@@ -41,7 +40,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		container, err := runtime.Run(ctx, RunConfig{
+		container, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test-container",
 			Image: "ubuntu:24.04",
 		})
@@ -55,7 +54,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes volume mounts", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-v")
 				assert.Contains(t, opts.Args, "/host/path:/container/path")
 
@@ -67,7 +66,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		_, err := runtime.Run(ctx, RunConfig{
+		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
 			Mounts: []Mount{
@@ -80,7 +79,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes read-only mount flag", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "/host:/container:ro")
 
 				return &exec.Result{
@@ -91,7 +90,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		_, err := runtime.Run(ctx, RunConfig{
+		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
 			Mounts: []Mount{
@@ -104,7 +103,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("includes environment variables", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-e")
 				assert.Contains(t, opts.Args, "FOO=bar")
 
@@ -116,7 +115,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		_, err := runtime.Run(ctx, RunConfig{
+		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
 			Env:   []string{"FOO=bar"},
@@ -127,7 +126,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 
 	t.Run("returns ErrAlreadyExists when container exists", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("container already exists"),
 					ExitCode: 1,
@@ -136,7 +135,7 @@ func TestAppleRuntime_Run(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		_, err := runtime.Run(ctx, RunConfig{
+		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "existing",
 			Image: "ubuntu",
 		})
@@ -151,7 +150,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 	t.Run("executes command in running container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
 					// Get call - Apple Container format
@@ -180,7 +179,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 	t.Run("includes workdir when specified", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
 					// Get call - Apple Container format
@@ -206,7 +205,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("container not found"),
 					ExitCode: 1,
@@ -224,7 +223,7 @@ func TestAppleRuntime_Exec(t *testing.T) {
 
 	t.Run("returns ErrNotRunning when container stopped", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				// Get call - Apple Container format with stopped status
 				return &exec.Result{
 					Stdout: []byte(`[{"status":"stopped","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
@@ -247,7 +246,7 @@ func TestAppleRuntime_Stop(t *testing.T) {
 	t.Run("stops running container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				if callCount == 1 {
 					// Get call - Apple Container format
@@ -273,7 +272,7 @@ func TestAppleRuntime_Stop(t *testing.T) {
 	t.Run("no-op for already stopped container", func(t *testing.T) {
 		callCount := 0
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				callCount++
 				// Get call - Apple Container format with stopped status
 				return &exec.Result{
@@ -291,7 +290,7 @@ func TestAppleRuntime_Stop(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("container not found"),
 					ExitCode: 1,
@@ -311,7 +310,7 @@ func TestAppleRuntime_Remove(t *testing.T) {
 
 	t.Run("removes container", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "container", opts.Name)
 				assert.Equal(t, []string{"rm", "abc123"}, opts.Args)
 
@@ -327,7 +326,7 @@ func TestAppleRuntime_Remove(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("no such container"),
 					ExitCode: 1,
@@ -347,7 +346,7 @@ func TestAppleRuntime_Get(t *testing.T) {
 
 	t.Run("returns container info", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "container", opts.Name)
 				assert.Contains(t, opts.Args, "inspect")
 				assert.Contains(t, opts.Args, "abc123")
@@ -371,7 +370,7 @@ func TestAppleRuntime_Get(t *testing.T) {
 
 	t.Run("parses stopped state", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				// Apple Container format with exited status
 				return &exec.Result{
 					Stdout: []byte(`[{"status":"exited","configuration":{"id":"abc123","image":{"reference":"ubuntu"}}}]`),
@@ -388,7 +387,7 @@ func TestAppleRuntime_Get(t *testing.T) {
 
 	t.Run("returns ErrNotFound when container missing", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("not found"),
 					ExitCode: 1,
@@ -408,7 +407,7 @@ func TestAppleRuntime_List(t *testing.T) {
 
 	t.Run("returns empty list", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stdout: []byte("[]"),
 				}, nil
@@ -424,7 +423,7 @@ func TestAppleRuntime_List(t *testing.T) {
 
 	t.Run("returns container list", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				// Apple Container format
 				return &exec.Result{
 					Stdout: []byte(`[{"status":"running","configuration":{"id":"abc","image":{"reference":"ubuntu"}}},{"status":"stopped","configuration":{"id":"def","image":{"reference":"alpine"}}}]`),
@@ -446,7 +445,7 @@ func TestAppleRuntime_List(t *testing.T) {
 
 	t.Run("includes name filter", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "--filter")
 				assert.Contains(t, opts.Args, "name=my-prefix")
 
@@ -466,7 +465,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 
 	t.Run("builds image", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "container", opts.Name)
 				assert.Contains(t, opts.Args, "build")
 				assert.Contains(t, opts.Args, "-t")
@@ -478,7 +477,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		err := runtime.Build(ctx, BuildConfig{
+		err := runtime.Build(ctx, &BuildConfig{
 			Context: "/build/context",
 			Tag:     "myimage:latest",
 		})
@@ -488,7 +487,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 
 	t.Run("includes dockerfile path", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "-f")
 				assert.Contains(t, opts.Args, "custom.Dockerfile")
 
@@ -497,7 +496,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		err := runtime.Build(ctx, BuildConfig{
+		err := runtime.Build(ctx, &BuildConfig{
 			Context:    "/build/context",
 			Dockerfile: "custom.Dockerfile",
 			Tag:        "myimage:latest",
@@ -508,7 +507,7 @@ func TestAppleRuntime_Build(t *testing.T) {
 
 	t.Run("returns ErrBuildFailed on failure", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				return &exec.Result{
 					Stderr:   []byte("build error: missing base image"),
 					ExitCode: 1,
@@ -517,12 +516,12 @@ func TestAppleRuntime_Build(t *testing.T) {
 		}
 
 		runtime := NewAppleRuntime(mockExec)
-		err := runtime.Build(ctx, BuildConfig{
+		err := runtime.Build(ctx, &BuildConfig{
 			Context: "/build/context",
 			Tag:     "myimage:latest",
 		})
 
-		assert.ErrorIs(t, err, ErrBuildFailed)
+		require.ErrorIs(t, err, ErrBuildFailed)
 		assert.Contains(t, err.Error(), "missing base image")
 	})
 }

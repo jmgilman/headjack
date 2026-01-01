@@ -6,14 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/jmgilman/headjack/internal/catalog"
 	catalogmocks "github.com/jmgilman/headjack/internal/catalog/mocks"
 	"github.com/jmgilman/headjack/internal/container"
 	containermocks "github.com/jmgilman/headjack/internal/container/mocks"
 	"github.com/jmgilman/headjack/internal/git"
 	gitmocks "github.com/jmgilman/headjack/internal/git/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+)
+
+// Test constants for repeated values.
+const (
+	testRepoID   = "myrepo-abc123"
+	testRepoPath = "/path/to/repo"
 )
 
 func TestNewManager(t *testing.T) {
@@ -28,8 +35,8 @@ func TestManager_Create(t *testing.T) {
 
 	t.Run("creates instance successfully", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
-			RootFunc:       func() string { return "/path/to/repo" },
+			IdentifierFunc: func() string { return testRepoID },
+			RootFunc:       func() string { return testRepoPath },
 			CreateWorktreeFunc: func(ctx context.Context, path, branch string) error {
 				return nil
 			},
@@ -43,15 +50,15 @@ func TestManager_Create(t *testing.T) {
 			GetByRepoBranchFunc: func(ctx context.Context, repoID, branch string) (*catalog.Entry, error) {
 				return nil, catalog.ErrNotFound
 			},
-			AddFunc: func(ctx context.Context, entry catalog.Entry) error {
+			AddFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				return nil
 			},
-			UpdateFunc: func(ctx context.Context, entry catalog.Entry) error {
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				return nil
 			},
 		}
 		runtime := &containermocks.RuntimeMock{
-			RunFunc: func(ctx context.Context, cfg container.RunConfig) (*container.Container, error) {
+			RunFunc: func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 				return &container.Container{
 					ID:     "container-123",
 					Name:   cfg.Name,
@@ -70,7 +77,7 @@ func TestManager_Create(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, inst)
-		assert.Equal(t, "myrepo-abc123", inst.RepoID)
+		assert.Equal(t, testRepoID, inst.RepoID)
 		assert.Equal(t, "feature/auth", inst.Branch)
 		assert.Equal(t, "container-123", inst.ContainerID)
 		assert.Equal(t, StatusRunning, inst.Status)
@@ -87,7 +94,7 @@ func TestManager_Create(t *testing.T) {
 
 	t.Run("returns ErrAlreadyExists for duplicate branch", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
+			IdentifierFunc: func() string { return testRepoID },
 		}
 		opener := &gitmocks.OpenerMock{
 			OpenFunc: func(ctx context.Context, path string) (git.Repository, error) {
@@ -102,15 +109,15 @@ func TestManager_Create(t *testing.T) {
 
 		mgr := NewManager(store, nil, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
 
-		_, err := mgr.Create(ctx, "/path/to/repo", CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
 		assert.ErrorIs(t, err, ErrAlreadyExists)
 	})
 
 	t.Run("cleans up on worktree failure", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
-			RootFunc:       func() string { return "/path/to/repo" },
+			IdentifierFunc: func() string { return testRepoID },
+			RootFunc:       func() string { return testRepoPath },
 			CreateWorktreeFunc: func(ctx context.Context, path, branch string) error {
 				return errors.New("worktree error")
 			},
@@ -124,7 +131,7 @@ func TestManager_Create(t *testing.T) {
 			GetByRepoBranchFunc: func(ctx context.Context, repoID, branch string) (*catalog.Entry, error) {
 				return nil, catalog.ErrNotFound
 			},
-			AddFunc: func(ctx context.Context, entry catalog.Entry) error {
+			AddFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				return nil
 			},
 			RemoveFunc: func(ctx context.Context, id string) error {
@@ -134,7 +141,7 @@ func TestManager_Create(t *testing.T) {
 
 		mgr := NewManager(store, nil, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
 
-		_, err := mgr.Create(ctx, "/path/to/repo", CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "worktree error")
@@ -144,8 +151,8 @@ func TestManager_Create(t *testing.T) {
 
 	t.Run("cleans up on container failure", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
-			RootFunc:       func() string { return "/path/to/repo" },
+			IdentifierFunc: func() string { return testRepoID },
+			RootFunc:       func() string { return testRepoPath },
 			CreateWorktreeFunc: func(ctx context.Context, path, branch string) error {
 				return nil
 			},
@@ -162,7 +169,7 @@ func TestManager_Create(t *testing.T) {
 			GetByRepoBranchFunc: func(ctx context.Context, repoID, branch string) (*catalog.Entry, error) {
 				return nil, catalog.ErrNotFound
 			},
-			AddFunc: func(ctx context.Context, entry catalog.Entry) error {
+			AddFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				return nil
 			},
 			RemoveFunc: func(ctx context.Context, id string) error {
@@ -170,14 +177,14 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 		runtime := &containermocks.RuntimeMock{
-			RunFunc: func(ctx context.Context, cfg container.RunConfig) (*container.Container, error) {
+			RunFunc: func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 				return nil, errors.New("container error")
 			},
 		}
 
 		mgr := NewManager(store, runtime, opener, ManagerConfig{WorktreesDir: "/data/worktrees"})
 
-		_, err := mgr.Create(ctx, "/path/to/repo", CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "container error")
@@ -195,8 +202,8 @@ func TestManager_Get(t *testing.T) {
 			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
 				return &catalog.Entry{
 					ID:          "abc123",
-					Repo:        "/path/to/repo",
-					RepoID:      "myrepo-abc123",
+					Repo:        testRepoPath,
+					RepoID:      testRepoID,
 					Branch:      "main",
 					ContainerID: "container-123",
 					Status:      catalog.StatusRunning,
@@ -242,7 +249,7 @@ func TestManager_GetByBranch(t *testing.T) {
 
 	t.Run("returns instance by repo and branch", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
+			IdentifierFunc: func() string { return testRepoID },
 		}
 		opener := &gitmocks.OpenerMock{
 			OpenFunc: func(ctx context.Context, path string) (git.Repository, error) {
@@ -280,7 +287,7 @@ func TestManager_GetByBranch(t *testing.T) {
 
 	t.Run("returns ErrNotFound for missing branch", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
-			IdentifierFunc: func() string { return "myrepo-abc123" },
+			IdentifierFunc: func() string { return testRepoID },
 		}
 		opener := &gitmocks.OpenerMock{
 			OpenFunc: func(ctx context.Context, path string) (git.Repository, error) {
@@ -366,7 +373,7 @@ func TestManager_Stop(t *testing.T) {
 					Status:      catalog.StatusRunning,
 				}, nil
 			},
-			UpdateFunc: func(ctx context.Context, entry catalog.Entry) error {
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				assert.Equal(t, catalog.StatusStopped, entry.Status)
 				return nil
 			},
@@ -472,7 +479,7 @@ func TestManager_Recreate(t *testing.T) {
 			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
 				return &catalog.Entry{
 					ID:          "abc123",
-					RepoID:      "myrepo-abc123",
+					RepoID:      testRepoID,
 					Branch:      "main",
 					Worktree:    "/data/git/myrepo/main",
 					ContainerID: "old-container",
@@ -480,7 +487,7 @@ func TestManager_Recreate(t *testing.T) {
 					Status:      catalog.StatusRunning,
 				}, nil
 			},
-			UpdateFunc: func(ctx context.Context, entry catalog.Entry) error {
+			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
 				return nil
 			},
 		}
@@ -491,7 +498,7 @@ func TestManager_Recreate(t *testing.T) {
 			RemoveFunc: func(ctx context.Context, id string) error {
 				return nil
 			},
-			RunFunc: func(ctx context.Context, cfg container.RunConfig) (*container.Container, error) {
+			RunFunc: func(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 				return &container.Container{
 					ID:     "new-container",
 					Name:   cfg.Name,

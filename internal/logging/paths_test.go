@@ -65,7 +65,7 @@ func TestPathManager_LogExists(t *testing.T) {
 	path, err := pm.EnsureSessionLog("inst1", "sess1")
 	require.NoError(t, err)
 
-	err = os.WriteFile(path, []byte("test"), 0644)
+	err = os.WriteFile(path, []byte("test"), 0o600)
 	require.NoError(t, err)
 
 	// Now it should exist
@@ -80,7 +80,7 @@ func TestPathManager_RemoveSessionLog(t *testing.T) {
 	path, err := pm.EnsureSessionLog("inst1", "sess1")
 	require.NoError(t, err)
 
-	err = os.WriteFile(path, []byte("test"), 0644)
+	err = os.WriteFile(path, []byte("test"), 0o600)
 	require.NoError(t, err)
 
 	assert.True(t, pm.LogExists("inst1", "sess1"))
@@ -104,7 +104,7 @@ func TestPathManager_RemoveInstanceLogs(t *testing.T) {
 	for _, sess := range []string{"sess1", "sess2", "sess3"} {
 		path, err := pm.EnsureSessionLog("inst1", sess)
 		require.NoError(t, err)
-		err = os.WriteFile(path, []byte("test"), 0644)
+		err = os.WriteFile(path, []byte("test"), 0o600)
 		require.NoError(t, err)
 	}
 
@@ -137,14 +137,14 @@ func TestPathManager_ListSessionLogs(t *testing.T) {
 
 	// Create some log files
 	for _, sess := range []string{"alpha", "beta", "gamma"} {
-		path, err := pm.EnsureSessionLog("inst1", sess)
-		require.NoError(t, err)
-		err = os.WriteFile(path, []byte("test"), 0644)
-		require.NoError(t, err)
+		sessPath, sessErr := pm.EnsureSessionLog("inst1", sess)
+		require.NoError(t, sessErr)
+		sessErr = os.WriteFile(sessPath, []byte("test"), 0o600)
+		require.NoError(t, sessErr)
 	}
 
 	// Also create a non-log file (should be ignored)
-	err = os.WriteFile(filepath.Join(pm.InstanceDir("inst1"), "other.txt"), []byte("not a log"), 0644)
+	err = os.WriteFile(filepath.Join(pm.InstanceDir("inst1"), "other.txt"), []byte("not a log"), 0o600)
 	require.NoError(t, err)
 
 	// List sessions

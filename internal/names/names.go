@@ -22,7 +22,7 @@ func GenerateUnique(existsFn ExistsFn, maxAttempts int) (string, error) {
 		maxAttempts = 100
 	}
 
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		name := Generate()
 		if !existsFn(name) {
 			return name, nil

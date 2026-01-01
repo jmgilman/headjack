@@ -22,7 +22,10 @@ func WithConfig(ctx context.Context, cfg *config.Config) context.Context {
 
 // ConfigFromContext retrieves the config from context.
 func ConfigFromContext(ctx context.Context) *config.Config {
-	cfg, _ := ctx.Value(configKey).(*config.Config)
+	cfg, ok := ctx.Value(configKey).(*config.Config)
+	if !ok {
+		return nil
+	}
 	return cfg
 }
 
@@ -33,7 +36,10 @@ func WithLoader(ctx context.Context, loader *config.Loader) context.Context {
 
 // LoaderFromContext retrieves the config loader from context.
 func LoaderFromContext(ctx context.Context) *config.Loader {
-	loader, _ := ctx.Value(loaderKey).(*config.Loader)
+	loader, ok := ctx.Value(loaderKey).(*config.Loader)
+	if !ok {
+		return nil
+	}
 	return loader
 }
 
@@ -44,6 +50,9 @@ func WithManager(ctx context.Context, mgr *instance.Manager) context.Context {
 
 // ManagerFromContext retrieves the instance manager from context.
 func ManagerFromContext(ctx context.Context) *instance.Manager {
-	mgr, _ := ctx.Value(managerKey).(*instance.Manager)
+	mgr, ok := ctx.Value(managerKey).(*instance.Manager)
+	if !ok {
+		return nil
+	}
 	return mgr
 }

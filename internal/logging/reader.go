@@ -40,11 +40,14 @@ func (r *Reader) ReadLastN(instanceID, sessionID string, n int) ([]string, error
 }
 
 // Follow streams new log lines to the provided writer as they are appended.
-// This is similar to `tail -f`. It blocks until the context is cancelled.
+// This is similar to `tail -f`. It blocks until the context is canceled.
 // The pollInterval determines how frequently to check for new content.
+//
+//nolint:gocognit // Follow requires nested loops for polling and reading; complexity is inherent to tail -f semantics
 func (r *Reader) Follow(ctx context.Context, instanceID, sessionID string, out io.Writer, pollInterval time.Duration) error {
 	path := r.pathMgr.SessionLogPath(instanceID, sessionID)
 
+	//nolint:gosec // G304: path is constructed from trusted PathManager, not arbitrary user input
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open log file: %w", err)
@@ -106,6 +109,7 @@ func (r *Reader) FollowWithHistory(ctx context.Context, instanceID, sessionID st
 
 // readAllLines reads all lines from a file.
 func readAllLines(path string) ([]string, error) {
+	//nolint:gosec // G304: path is constructed from trusted PathManager, not arbitrary user input
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open log file: %w", err)
@@ -128,6 +132,7 @@ func readAllLines(path string) ([]string, error) {
 // readLastNLines reads the last n lines from a file.
 // Uses a ring buffer approach for efficiency with large files.
 func readLastNLines(path string, n int) ([]string, error) {
+	//nolint:gosec // G304: path is constructed from trusted PathManager, not arbitrary user input
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open log file: %w", err)
@@ -162,7 +167,7 @@ func readLastNLines(path string, n int) ([]string, error) {
 
 	// Buffer is full, need to reorder
 	result := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		result[i] = ring[(idx+i)%n]
 	}
 	return result, nil

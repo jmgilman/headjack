@@ -5,8 +5,9 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/multiplexer"
 	"sync"
+
+	"github.com/jmgilman/headjack/internal/multiplexer"
 )
 
 // Ensure, that MultiplexerMock does implement multiplexer.Multiplexer.
@@ -22,7 +23,7 @@ var _ multiplexer.Multiplexer = &MultiplexerMock{}
 //			AttachSessionFunc: func(ctx context.Context, sessionName string) error {
 //				panic("mock out the AttachSession method")
 //			},
-//			CreateSessionFunc: func(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
+//			CreateSessionFunc: func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
 //				panic("mock out the CreateSession method")
 //			},
 //			KillSessionFunc: func(ctx context.Context, sessionName string) error {
@@ -42,7 +43,7 @@ type MultiplexerMock struct {
 	AttachSessionFunc func(ctx context.Context, sessionName string) error
 
 	// CreateSessionFunc mocks the CreateSession method.
-	CreateSessionFunc func(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error)
+	CreateSessionFunc func(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error)
 
 	// KillSessionFunc mocks the KillSession method.
 	KillSessionFunc func(ctx context.Context, sessionName string) error
@@ -64,7 +65,7 @@ type MultiplexerMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Opts is the opts argument value.
-			Opts multiplexer.CreateSessionOpts
+			Opts *multiplexer.CreateSessionOpts
 		}
 		// KillSession holds details about calls to the KillSession method.
 		KillSession []struct {
@@ -122,13 +123,13 @@ func (mock *MultiplexerMock) AttachSessionCalls() []struct {
 }
 
 // CreateSession calls CreateSessionFunc.
-func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
+func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts *multiplexer.CreateSessionOpts) (*multiplexer.Session, error) {
 	if mock.CreateSessionFunc == nil {
 		panic("MultiplexerMock.CreateSessionFunc: method is nil but Multiplexer.CreateSession was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Opts multiplexer.CreateSessionOpts
+		Opts *multiplexer.CreateSessionOpts
 	}{
 		Ctx:  ctx,
 		Opts: opts,
@@ -145,11 +146,11 @@ func (mock *MultiplexerMock) CreateSession(ctx context.Context, opts multiplexer
 //	len(mockedMultiplexer.CreateSessionCalls())
 func (mock *MultiplexerMock) CreateSessionCalls() []struct {
 	Ctx  context.Context
-	Opts multiplexer.CreateSessionOpts
+	Opts *multiplexer.CreateSessionOpts
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Opts multiplexer.CreateSessionOpts
+		Opts *multiplexer.CreateSessionOpts
 	}
 	mock.lockCreateSession.RLock()
 	calls = mock.calls.CreateSession

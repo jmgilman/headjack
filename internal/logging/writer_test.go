@@ -17,7 +17,6 @@ func TestTeeWriter_Write(t *testing.T) {
 	primary := &bytes.Buffer{}
 	tw, err := NewTeeWriter(primary, logPath)
 	require.NoError(t, err)
-	defer tw.Close()
 
 	// Write some data
 	n, err := tw.Write([]byte("hello world"))
@@ -28,7 +27,9 @@ func TestTeeWriter_Write(t *testing.T) {
 	assert.Equal(t, "hello world", primary.String())
 
 	// Verify log file received data
-	tw.Close()
+	err = tw.Close()
+	require.NoError(t, err)
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(data))
@@ -43,15 +44,20 @@ func TestTeeWriter_WriteMultiple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write multiple times
-	tw.Write([]byte("first\n"))
-	tw.Write([]byte("second\n"))
-	tw.Write([]byte("third\n"))
+	_, err = tw.Write([]byte("first\n"))
+	require.NoError(t, err)
+	_, err = tw.Write([]byte("second\n"))
+	require.NoError(t, err)
+	_, err = tw.Write([]byte("third\n"))
+	require.NoError(t, err)
 
-	tw.Close()
+	err = tw.Close()
+	require.NoError(t, err)
 
 	// Verify both destinations
 	assert.Equal(t, "first\nsecond\nthird\n", primary.String())
 
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "first\nsecond\nthird\n", string(data))
@@ -63,14 +69,15 @@ func TestTeeWriter_NilPrimary(t *testing.T) {
 
 	tw, err := NewTeeWriter(nil, logPath)
 	require.NoError(t, err)
-	defer tw.Close()
 
 	// Write should succeed even with nil primary
 	n, err := tw.Write([]byte("log only"))
 	require.NoError(t, err)
 	assert.Equal(t, 8, n)
 
-	tw.Close()
+	err = tw.Close()
+	require.NoError(t, err)
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "log only", string(data))
@@ -81,7 +88,7 @@ func TestTeeWriterAppend(t *testing.T) {
 	logPath := filepath.Join(dir, "test.log")
 
 	// Create initial file with content
-	err := os.WriteFile(logPath, []byte("existing\n"), 0644)
+	err := os.WriteFile(logPath, []byte("existing\n"), 0o600)
 	require.NoError(t, err)
 
 	// Open in append mode
@@ -89,10 +96,13 @@ func TestTeeWriterAppend(t *testing.T) {
 	tw, err := NewTeeWriterAppend(primary, logPath)
 	require.NoError(t, err)
 
-	tw.Write([]byte("appended\n"))
-	tw.Close()
+	_, err = tw.Write([]byte("appended\n"))
+	require.NoError(t, err)
+	err = tw.Close()
+	require.NoError(t, err)
 
 	// Verify append worked
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "existing\nappended\n", string(data))
@@ -107,8 +117,9 @@ func TestTeeWriter_LogPath(t *testing.T) {
 
 	assert.Equal(t, logPath, tw.LogPath())
 
-	tw.Close()
-	assert.Equal(t, "", tw.LogPath())
+	err = tw.Close()
+	require.NoError(t, err)
+	assert.Empty(t, tw.LogPath())
 }
 
 func TestTeeWriter_Sync(t *testing.T) {
@@ -117,9 +128,10 @@ func TestTeeWriter_Sync(t *testing.T) {
 
 	tw, err := NewTeeWriter(&bytes.Buffer{}, logPath)
 	require.NoError(t, err)
-	defer tw.Close()
+	defer tw.Close() //nolint:errcheck // test cleanup
 
-	tw.Write([]byte("data"))
+	_, err = tw.Write([]byte("data"))
+	require.NoError(t, err)
 	err = tw.Sync()
 	require.NoError(t, err)
 }
@@ -130,13 +142,14 @@ func TestLogOnlyWriter(t *testing.T) {
 
 	tw, err := LogOnlyWriter(logPath)
 	require.NoError(t, err)
-	defer tw.Close()
 
 	n, err := tw.Write([]byte("log only content"))
 	require.NoError(t, err)
 	assert.Equal(t, 16, n)
 
-	tw.Close()
+	err = tw.Close()
+	require.NoError(t, err)
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "log only content", string(data))
@@ -153,18 +166,22 @@ func TestSessionWriters(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write to stdout
-	sw.Stdout.Write([]byte("stdout line\n"))
+	_, err = sw.Stdout.Write([]byte("stdout line\n"))
+	require.NoError(t, err)
 
 	// Write to stderr
-	sw.Stderr.Write([]byte("stderr line\n"))
+	_, err = sw.Stderr.Write([]byte("stderr line\n"))
+	require.NoError(t, err)
 
 	// Both should appear in primary writers
 	assert.Equal(t, "stdout line\n", stdout.String())
 	assert.Equal(t, "stderr line\n", stderr.String())
 
-	sw.Close()
+	err = sw.Close()
+	require.NoError(t, err)
 
 	// Both should appear in log file (interleaved)
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "stdout line\nstderr line\n", string(data))
@@ -175,7 +192,7 @@ func TestSessionWritersAppend(t *testing.T) {
 	logPath := filepath.Join(dir, "session.log")
 
 	// Create initial file
-	err := os.WriteFile(logPath, []byte("previous\n"), 0644)
+	err := os.WriteFile(logPath, []byte("previous\n"), 0o600)
 	require.NoError(t, err)
 
 	stdout := &bytes.Buffer{}
@@ -184,10 +201,14 @@ func TestSessionWritersAppend(t *testing.T) {
 	sw, err := NewSessionWritersAppend(stdout, stderr, logPath)
 	require.NoError(t, err)
 
-	sw.Stdout.Write([]byte("new stdout\n"))
-	sw.Stderr.Write([]byte("new stderr\n"))
-	sw.Close()
+	_, err = sw.Stdout.Write([]byte("new stdout\n"))
+	require.NoError(t, err)
+	_, err = sw.Stderr.Write([]byte("new stderr\n"))
+	require.NoError(t, err)
+	err = sw.Close()
+	require.NoError(t, err)
 
+	//nolint:gosec // G304: logPath is from test temp directory, not user input
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Equal(t, "previous\nnew stdout\nnew stderr\n", string(data))
@@ -199,9 +220,10 @@ func TestSessionWriters_Sync(t *testing.T) {
 
 	sw, err := NewSessionWriters(&bytes.Buffer{}, &bytes.Buffer{}, logPath)
 	require.NoError(t, err)
-	defer sw.Close()
+	defer sw.Close() //nolint:errcheck // test cleanup
 
-	sw.Stdout.Write([]byte("data"))
+	_, err = sw.Stdout.Write([]byte("data"))
+	require.NoError(t, err)
 	err = sw.Sync()
 	require.NoError(t, err)
 }

@@ -20,11 +20,11 @@ type appleRuntime struct {
 }
 
 // NewAppleRuntime creates a Runtime using Apple Containerization CLI.
-func NewAppleRuntime(e exec.Executor) *appleRuntime {
+func NewAppleRuntime(e exec.Executor) Runtime {
 	return &appleRuntime{exec: e}
 }
 
-func (r *appleRuntime) Run(ctx context.Context, cfg RunConfig) (*Container, error) {
+func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
 	args := []string{"run", "--detach", "--name", cfg.Name}
 
 	for _, m := range cfg.Mounts {
@@ -41,7 +41,7 @@ func (r *appleRuntime) Run(ctx context.Context, cfg RunConfig) (*Container, erro
 
 	args = append(args, cfg.Image)
 
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: args,
 	})
@@ -96,7 +96,7 @@ func (r *appleRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) erro
 		return r.execInteractive(ctx, args)
 	}
 
-	_, err = r.exec.Run(ctx, exec.RunOptions{
+	_, err = r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: args,
 	})
@@ -114,7 +114,7 @@ func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error
 	// Check if stdin is a terminal
 	if !term.IsTerminal(stdinFd) {
 		// Fall back to non-interactive mode
-		_, err := r.exec.Run(ctx, exec.RunOptions{
+		_, err := r.exec.Run(ctx, &exec.RunOptions{
 			Name:   "container",
 			Args:   args,
 			Stdin:  os.Stdin,
@@ -129,7 +129,7 @@ func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error
 	if err != nil {
 		return fmt.Errorf("set terminal raw mode: %w", err)
 	}
-	defer term.Restore(stdinFd, oldState)
+	defer func() { _ = term.Restore(stdinFd, oldState) }()
 
 	// Handle window resize signals
 	sigCh := make(chan os.Signal, 1)
@@ -137,7 +137,7 @@ func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error
 	defer signal.Stop(sigCh)
 
 	// Run the command with stdio attached
-	_, err = r.exec.Run(ctx, exec.RunOptions{
+	_, err = r.exec.Run(ctx, &exec.RunOptions{
 		Name:   "container",
 		Args:   args,
 		Stdin:  os.Stdin,
@@ -160,7 +160,7 @@ func (r *appleRuntime) Stop(ctx context.Context, id string) error {
 		return nil
 	}
 
-	_, err = r.exec.Run(ctx, exec.RunOptions{
+	_, err = r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: []string{"stop", id},
 	})
@@ -172,7 +172,7 @@ func (r *appleRuntime) Stop(ctx context.Context, id string) error {
 }
 
 func (r *appleRuntime) Remove(ctx context.Context, id string) error {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: []string{"rm", id},
 	})
@@ -188,7 +188,7 @@ func (r *appleRuntime) Remove(ctx context.Context, id string) error {
 }
 
 func (r *appleRuntime) Get(ctx context.Context, id string) (*Container, error) {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: []string{"inspect", id},
 	})
@@ -216,10 +216,10 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 	args := []string{"list", "--format", "json"}
 
 	if filter.Name != "" {
-		args = append(args, "--filter", fmt.Sprintf("name=%s", filter.Name))
+		args = append(args, "--filter", "name="+filter.Name)
 	}
 
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: args,
 	})
@@ -246,7 +246,7 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 	return containers, nil
 }
 
-func (r *appleRuntime) Build(ctx context.Context, cfg BuildConfig) error {
+func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
 	args := []string{"build", "-t", cfg.Tag}
 
 	if cfg.Dockerfile != "" {
@@ -255,7 +255,7 @@ func (r *appleRuntime) Build(ctx context.Context, cfg BuildConfig) error {
 
 	args = append(args, cfg.Context)
 
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",
 		Args: args,
 	})

@@ -32,7 +32,7 @@ type Executor interface {
 	// If Stdout/Stderr writers are set in opts, output streams there and
 	// Result.Stdout/Stderr will be nil.
 	// Returns os/exec.ExitError on non-zero exit (use errors.As to extract).
-	Run(ctx context.Context, opts RunOptions) (*Result, error)
+	Run(ctx context.Context, opts *RunOptions) (*Result, error)
 
 	// LookPath searches for an executable in PATH.
 	// Returns the full path if found, or an error if not.

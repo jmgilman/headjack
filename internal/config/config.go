@@ -112,10 +112,14 @@ func NewLoader() (*Loader, error) {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Bind specific env vars to config keys
-	_ = v.BindEnv("default.agent", "HEADJACK_DEFAULT_AGENT")
-	_ = v.BindEnv("default.base_image", "HEADJACK_BASE_IMAGE")
-	_ = v.BindEnv("storage.worktrees", "HEADJACK_WORKTREE_DIR")
+	// Bind specific env vars to config keys.
+	// We intentionally ignore errors here as BindEnv only fails if called with zero arguments.
+	//nolint:errcheck // BindEnv only fails with zero arguments
+	v.BindEnv("default.agent", "HEADJACK_DEFAULT_AGENT")
+	//nolint:errcheck // BindEnv only fails with zero arguments
+	v.BindEnv("default.base_image", "HEADJACK_BASE_IMAGE")
+	//nolint:errcheck // BindEnv only fails with zero arguments
+	v.BindEnv("storage.worktrees", "HEADJACK_WORKTREE_DIR")
 
 	l := &Loader{
 		v:       v,
@@ -212,7 +216,7 @@ func (l *Loader) Set(key, value string) error {
 // createDefault writes the default configuration file using Viper.
 func (l *Loader) createDefault() error {
 	dir := filepath.Dir(l.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
 	}
 
@@ -266,7 +270,7 @@ func buildValidKeys() map[string]bool {
 
 // addKeysFromType recursively adds keys from a struct type.
 func addKeysFromType(t reflect.Type, prefix string, keys map[string]bool) {
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		tag := field.Tag.Get("mapstructure")
 		if tag == "" {

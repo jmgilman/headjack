@@ -17,6 +17,7 @@ var (
 // Status represents the instance lifecycle state.
 type Status string
 
+// Instance status constants.
 const (
 	StatusRunning Status = "running"
 	StatusStopped Status = "stopped"

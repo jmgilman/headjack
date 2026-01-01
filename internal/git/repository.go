@@ -39,7 +39,7 @@ func (r *repository) BranchExists(ctx context.Context, branch string) (bool, err
 
 // localBranchExists checks if a branch exists locally.
 func (r *repository) localBranchExists(ctx context.Context, branch string) (bool, error) {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"show-ref", "--verify", "--quiet", "refs/heads/" + branch},
 		Dir:  r.root,
@@ -56,7 +56,7 @@ func (r *repository) localBranchExists(ctx context.Context, branch string) (bool
 
 // remoteBranchExists checks if a branch exists in any remote.
 func (r *repository) remoteBranchExists(ctx context.Context, branch string) (bool, error) {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"branch", "-r", "--list", "*/" + branch},
 		Dir:  r.root,
@@ -85,7 +85,7 @@ func (r *repository) CreateWorktree(ctx context.Context, path, branch string) er
 		args = []string{"worktree", "add", "-b", branch, path}
 	}
 
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: args,
 		Dir:  r.root,
@@ -106,7 +106,7 @@ func (r *repository) CreateWorktree(ctx context.Context, path, branch string) er
 }
 
 func (r *repository) RemoveWorktree(ctx context.Context, path string) error {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"worktree", "remove", path},
 		Dir:  r.root,
@@ -123,7 +123,7 @@ func (r *repository) RemoveWorktree(ctx context.Context, path string) error {
 }
 
 func (r *repository) ListWorktrees(ctx context.Context) ([]Worktree, error) {
-	result, err := r.exec.Run(ctx, exec.RunOptions{
+	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"worktree", "list", "--porcelain"},
 		Dir:  r.root,

@@ -17,6 +17,7 @@ var (
 // Status represents the instance lifecycle state.
 type Status string
 
+// Status constants for instance lifecycle states.
 const (
 	StatusCreating Status = "creating"
 	StatusRunning  Status = "running"
@@ -27,6 +28,7 @@ const (
 // SessionType represents the type of session running within an instance.
 type SessionType string
 
+// SessionType constants for session types.
 const (
 	SessionTypeShell  SessionType = "shell"
 	SessionTypeClaude SessionType = "claude"
@@ -69,7 +71,7 @@ type ListFilter struct {
 type Store interface {
 	// Add creates a new entry.
 	// Returns ErrAlreadyExists if an entry with the same RepoID+Branch already exists.
-	Add(ctx context.Context, entry Entry) error
+	Add(ctx context.Context, entry *Entry) error
 
 	// Get retrieves an entry by ID.
 	// Returns ErrNotFound if not found.
@@ -81,7 +83,7 @@ type Store interface {
 
 	// Update modifies an existing entry.
 	// Returns ErrNotFound if not found.
-	Update(ctx context.Context, entry Entry) error
+	Update(ctx context.Context, entry *Entry) error
 
 	// Remove deletes an entry by ID.
 	// Returns ErrNotFound if not found.

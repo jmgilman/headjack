@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:unparam // instanceID is always "inst1" in tests, but kept as parameter for clarity and future extensibility
 func createTestLog(t *testing.T, dir, instanceID, sessionID string, lines []string) string {
 	t.Helper()
 	pm := NewPathManager(dir)
@@ -23,7 +24,7 @@ func createTestLog(t *testing.T, dir, instanceID, sessionID string, lines []stri
 	if len(lines) > 0 {
 		content += "\n"
 	}
-	err = os.WriteFile(path, []byte(content), 0644)
+	err = os.WriteFile(path, []byte(content), 0o600)
 	require.NoError(t, err)
 
 	return path
@@ -130,6 +131,7 @@ func TestReader_Follow(t *testing.T) {
 	logPath, err := pm.EnsureSessionLog("inst1", "sess1")
 	require.NoError(t, err)
 
+	//nolint:gosec // G304: logPath is from trusted test helper, not user input
 	logFile, err := os.Create(logPath)
 	require.NoError(t, err)
 
@@ -149,13 +151,16 @@ func TestReader_Follow(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Append some data
-	logFile.WriteString("new line 1\n")
-	logFile.WriteString("new line 2\n")
-	logFile.Sync()
+	_, err = logFile.WriteString("new line 1\n")
+	require.NoError(t, err)
+	_, err = logFile.WriteString("new line 2\n")
+	require.NoError(t, err)
+	err = logFile.Sync()
+	require.NoError(t, err)
 
 	// Wait for follow to finish (via context timeout)
 	err = <-done
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	// Verify output contains the new lines
 	assert.Contains(t, output.String(), "new line 1\n")
@@ -208,10 +213,13 @@ func TestReader_FollowWithHistory(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Append new content
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0644)
+	//nolint:gosec // G304: logPath is from trusted test helper, not user input
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
 	require.NoError(t, err)
-	f.WriteString("line6\n")
-	f.Sync()
+	_, err = f.WriteString("line6\n")
+	require.NoError(t, err)
+	err = f.Sync()
+	require.NoError(t, err)
 	f.Close()
 
 	// Wait for follow to finish
@@ -237,6 +245,7 @@ func TestReader_Follow_PartialLines(t *testing.T) {
 	logPath, err := pm.EnsureSessionLog("inst1", "sess1")
 	require.NoError(t, err)
 
+	//nolint:gosec // G304: logPath is from trusted test helper, not user input
 	logFile, err := os.Create(logPath)
 	require.NoError(t, err)
 
@@ -256,23 +265,29 @@ func TestReader_Follow_PartialLines(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Write a partial line (no trailing newline)
-	logFile.WriteString("partial")
-	logFile.Sync()
+	_, err = logFile.WriteString("partial")
+	require.NoError(t, err)
+	err = logFile.Sync()
+	require.NoError(t, err)
 
 	// Wait a bit for the poll to pick it up
 	time.Sleep(100 * time.Millisecond)
 
 	// Complete the line
-	logFile.WriteString(" complete\n")
-	logFile.Sync()
+	_, err = logFile.WriteString(" complete\n")
+	require.NoError(t, err)
+	err = logFile.Sync()
+	require.NoError(t, err)
 
 	// Write another line
-	logFile.WriteString("next line\n")
-	logFile.Sync()
+	_, err = logFile.WriteString("next line\n")
+	require.NoError(t, err)
+	err = logFile.Sync()
+	require.NoError(t, err)
 
 	// Wait for follow to finish (via context timeout)
 	err = <-done
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	// Verify output contains ALL data including the partial line
 	result := output.String()
@@ -288,12 +303,12 @@ func TestReadLastNLines_LargeFile(t *testing.T) {
 	logPath := filepath.Join(dir, "large.log")
 
 	// Create a file with 1000 lines
-	var lines []string
-	for i := 0; i < 1000; i++ {
-		lines = append(lines, strings.Repeat("x", 100)) // 100 char lines
+	lines := make([]string, 1000)
+	for i := range 1000 {
+		lines[i] = strings.Repeat("x", 100) // 100 char lines
 	}
 	content := strings.Join(lines, "\n") + "\n"
-	err := os.WriteFile(logPath, []byte(content), 0644)
+	err := os.WriteFile(logPath, []byte(content), 0o600)
 	require.NoError(t, err)
 
 	result, err := readLastNLines(logPath, 10)

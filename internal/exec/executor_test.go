@@ -22,7 +22,7 @@ func TestExecutor_Run(t *testing.T) {
 	e := New()
 
 	t.Run("captures stdout", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name: "echo",
 			Args: []string{"hello"},
 		})
@@ -34,7 +34,7 @@ func TestExecutor_Run(t *testing.T) {
 	})
 
 	t.Run("captures stderr", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name: "sh",
 			Args: []string{"-c", "echo error >&2"},
 		})
@@ -46,20 +46,20 @@ func TestExecutor_Run(t *testing.T) {
 	})
 
 	t.Run("captures exit code on failure", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name: "sh",
 			Args: []string{"-c", "exit 42"},
 		})
 
 		require.Error(t, err)
 		var exitErr *exec.ExitError
-		require.True(t, errors.As(err, &exitErr))
+		require.ErrorAs(t, err, &exitErr)
 		assert.Equal(t, 42, result.ExitCode)
 	})
 
 	t.Run("streams to provided stdout writer", func(t *testing.T) {
 		var buf bytes.Buffer
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name:   "echo",
 			Args:   []string{"streamed"},
 			Stdout: &buf,
@@ -72,7 +72,7 @@ func TestExecutor_Run(t *testing.T) {
 
 	t.Run("streams to provided stderr writer", func(t *testing.T) {
 		var buf bytes.Buffer
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name:   "sh",
 			Args:   []string{"-c", "echo error >&2"},
 			Stderr: &buf,
@@ -84,20 +84,19 @@ func TestExecutor_Run(t *testing.T) {
 	})
 
 	t.Run("respects working directory", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name: "pwd",
 			Dir:  "/tmp",
 		})
 
 		require.NoError(t, err)
 		// On macOS, /tmp is a symlink to /private/tmp
-		assert.True(t,
-			strings.Contains(string(result.Stdout), "/tmp"),
+		assert.Contains(t, string(result.Stdout), "/tmp",
 			"expected output to contain /tmp, got: %s", string(result.Stdout))
 	})
 
 	t.Run("passes environment variables", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name: "sh",
 			Args: []string{"-c", "echo $TEST_VAR"},
 			Env:  []string{"TEST_VAR=hello_env"},
@@ -108,7 +107,7 @@ func TestExecutor_Run(t *testing.T) {
 	})
 
 	t.Run("reads from stdin", func(t *testing.T) {
-		result, err := e.Run(context.Background(), RunOptions{
+		result, err := e.Run(context.Background(), &RunOptions{
 			Name:  "cat",
 			Stdin: strings.NewReader("input data"),
 		})
@@ -121,7 +120,7 @@ func TestExecutor_Run(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 
-		_, err := e.Run(ctx, RunOptions{
+		_, err := e.Run(ctx, &RunOptions{
 			Name: "sleep",
 			Args: []string{"10"},
 		})
@@ -132,7 +131,7 @@ func TestExecutor_Run(t *testing.T) {
 	})
 
 	t.Run("returns error for nonexistent command", func(t *testing.T) {
-		_, err := e.Run(context.Background(), RunOptions{
+		_, err := e.Run(context.Background(), &RunOptions{
 			Name: "nonexistent_command_12345",
 		})
 
@@ -157,6 +156,6 @@ func TestExecutor_LookPath(t *testing.T) {
 
 		require.Error(t, err)
 		var execErr *exec.Error
-		assert.True(t, errors.As(err, &execErr))
+		assert.ErrorAs(t, err, &execErr)
 	})
 }

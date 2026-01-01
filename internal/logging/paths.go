@@ -39,7 +39,7 @@ func (p *PathManager) SessionLogPath(instanceID, sessionID string) string {
 // Returns the instance directory path.
 func (p *PathManager) EnsureInstanceDir(instanceID string) (string, error) {
 	dir := p.InstanceDir(instanceID)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("create instance log directory: %w", err)
 	}
 	return dir, nil

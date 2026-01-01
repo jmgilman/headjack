@@ -17,7 +17,6 @@ func TestNewStore(t *testing.T) {
 	store := NewStore("/tmp/catalog.json")
 
 	require.NotNil(t, store)
-	assert.Equal(t, "/tmp/catalog.json", store.path)
 }
 
 func TestStore_Add(t *testing.T) {
@@ -35,7 +34,7 @@ func TestStore_Add(t *testing.T) {
 			CreatedAt: time.Now(),
 			Status:    StatusRunning,
 		}
-		err := store.Add(ctx, entry)
+		err := store.Add(ctx, &entry)
 
 		require.NoError(t, err)
 
@@ -60,10 +59,10 @@ func TestStore_Add(t *testing.T) {
 			Branch: "main",
 		}
 
-		err := store.Add(ctx, entry1)
+		err := store.Add(ctx, &entry1)
 		require.NoError(t, err)
 
-		err = store.Add(ctx, entry2)
+		err = store.Add(ctx, &entry2)
 		assert.ErrorIs(t, err, ErrAlreadyExists)
 	})
 
@@ -73,8 +72,8 @@ func TestStore_Add(t *testing.T) {
 		entry1 := Entry{ID: "abc123", RepoID: "repo1", Branch: "main"}
 		entry2 := Entry{ID: "def456", RepoID: "repo2", Branch: "main"}
 
-		require.NoError(t, store.Add(ctx, entry1))
-		require.NoError(t, store.Add(ctx, entry2))
+		require.NoError(t, store.Add(ctx, &entry1))
+		require.NoError(t, store.Add(ctx, &entry2))
 
 		entries, err := store.List(ctx, ListFilter{})
 		require.NoError(t, err)
@@ -89,7 +88,7 @@ func TestStore_Get(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
 		entry := Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		got, err := store.Get(ctx, "abc123")
 
@@ -113,7 +112,7 @@ func TestStore_GetByRepoBranch(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
 		entry := Entry{ID: "abc123", RepoID: "myrepo", Branch: "feat/auth"}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		got, err := store.GetByRepoBranch(ctx, "myrepo", "feat/auth")
 
@@ -142,11 +141,11 @@ func TestStore_Update(t *testing.T) {
 			Branch: "main",
 			Status: StatusCreating,
 		}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		entry.Status = StatusRunning
 		entry.ContainerID = "container-xyz"
-		err := store.Update(ctx, entry)
+		err := store.Update(ctx, &entry)
 
 		require.NoError(t, err)
 
@@ -160,7 +159,7 @@ func TestStore_Update(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
 		entry := Entry{ID: "nonexistent"}
-		err := store.Update(ctx, entry)
+		err := store.Update(ctx, &entry)
 
 		assert.ErrorIs(t, err, ErrNotFound)
 	})
@@ -173,7 +172,7 @@ func TestStore_Remove(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
 		entry := Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		err := store.Remove(ctx, "abc123")
 
@@ -198,9 +197,9 @@ func TestStore_List(t *testing.T) {
 	t.Run("returns all entries when no filter", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
-		require.NoError(t, store.Add(ctx, Entry{ID: "a", RepoID: "repo1", Branch: "main"}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "b", RepoID: "repo2", Branch: "main"}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "c", RepoID: "repo1", Branch: "dev"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "a", RepoID: "repo1", Branch: "main"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "b", RepoID: "repo2", Branch: "main"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "c", RepoID: "repo1", Branch: "dev"}))
 
 		entries, err := store.List(ctx, ListFilter{})
 
@@ -211,9 +210,9 @@ func TestStore_List(t *testing.T) {
 	t.Run("filters by repo ID", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
-		require.NoError(t, store.Add(ctx, Entry{ID: "a", RepoID: "repo1", Branch: "main"}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "b", RepoID: "repo2", Branch: "main"}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "c", RepoID: "repo1", Branch: "dev"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "a", RepoID: "repo1", Branch: "main"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "b", RepoID: "repo2", Branch: "main"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "c", RepoID: "repo1", Branch: "dev"}))
 
 		entries, err := store.List(ctx, ListFilter{RepoID: "repo1"})
 
@@ -227,9 +226,9 @@ func TestStore_List(t *testing.T) {
 	t.Run("filters by status", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
-		require.NoError(t, store.Add(ctx, Entry{ID: "a", RepoID: "repo1", Branch: "main", Status: StatusRunning}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "b", RepoID: "repo2", Branch: "main", Status: StatusStopped}))
-		require.NoError(t, store.Add(ctx, Entry{ID: "c", RepoID: "repo1", Branch: "dev", Status: StatusRunning}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "a", RepoID: "repo1", Branch: "main", Status: StatusRunning}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "b", RepoID: "repo2", Branch: "main", Status: StatusStopped}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "c", RepoID: "repo1", Branch: "dev", Status: StatusRunning}))
 
 		entries, err := store.List(ctx, ListFilter{Status: StatusRunning})
 
@@ -243,7 +242,7 @@ func TestStore_List(t *testing.T) {
 	t.Run("returns empty slice for no matches", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
 
-		require.NoError(t, store.Add(ctx, Entry{ID: "a", RepoID: "repo1"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "a", RepoID: "repo1"}))
 
 		entries, err := store.List(ctx, ListFilter{RepoID: "nonexistent"})
 
@@ -260,7 +259,7 @@ func TestStore_Persistence(t *testing.T) {
 
 		// First store instance
 		store1 := NewStore(path)
-		require.NoError(t, store1.Add(ctx, Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}))
+		require.NoError(t, store1.Add(ctx, &Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}))
 
 		// Second store instance (same path)
 		store2 := NewStore(path)
@@ -276,12 +275,12 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 
 	t.Run("handles concurrent reads", func(t *testing.T) {
 		store := NewStore(filepath.Join(t.TempDir(), "catalog.json"))
-		require.NoError(t, store.Add(ctx, Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}))
+		require.NoError(t, store.Add(ctx, &Entry{ID: "abc123", RepoID: "myrepo", Branch: "main"}))
 
 		var wg sync.WaitGroup
 		errs := make(chan error, 10)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -307,7 +306,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 		successCount := 0
 		var mu sync.Mutex
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -316,7 +315,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 					RepoID: fmt.Sprintf("repo-%d", idx),
 					Branch: "main",
 				}
-				if err := store.Add(ctx, entry); err == nil {
+				if err := store.Add(ctx, &entry); err == nil {
 					mu.Lock()
 					successCount++
 					mu.Unlock()
@@ -342,7 +341,7 @@ func TestStore_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
-		err := store.Add(ctx, Entry{ID: "abc123"})
+		err := store.Add(ctx, &Entry{ID: "abc123"})
 
 		assert.Error(t, err)
 	})
@@ -363,16 +362,16 @@ func TestStore_Sessions(t *testing.T) {
 			Status:    StatusRunning,
 			Sessions: []Session{
 				{
-					ID:            "sess-1",
-					Name:          "happy-panda",
-					Type:          SessionTypeClaude,
+					ID:           "sess-1",
+					Name:         "happy-panda",
+					Type:         SessionTypeClaude,
 					MuxSessionID: "hjk-abc123-sess-1",
-					CreatedAt:     now,
-					LastAccessed:  now,
+					CreatedAt:    now,
+					LastAccessed: now,
 				},
 			},
 		}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		got, err := store.Get(ctx, "abc123")
 		require.NoError(t, err)
@@ -393,18 +392,18 @@ func TestStore_Sessions(t *testing.T) {
 			Branch:   "main",
 			Sessions: []Session{},
 		}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		// Add a session
 		entry.Sessions = append(entry.Sessions, Session{
-			ID:            "sess-1",
-			Name:          "clever-wolf",
-			Type:          SessionTypeShell,
+			ID:           "sess-1",
+			Name:         "clever-wolf",
+			Type:         SessionTypeShell,
 			MuxSessionID: "hjk-abc123-sess-1",
-			CreatedAt:     now,
-			LastAccessed:  now,
+			CreatedAt:    now,
+			LastAccessed: now,
 		})
-		require.NoError(t, store.Update(ctx, entry))
+		require.NoError(t, store.Update(ctx, &entry))
 
 		got, err := store.Get(ctx, "abc123")
 		require.NoError(t, err)
@@ -428,7 +427,7 @@ func TestStore_Sessions(t *testing.T) {
 				{ID: "sess-3", Name: "swift-eagle", Type: SessionTypeGemini, CreatedAt: now, LastAccessed: now},
 			},
 		}
-		require.NoError(t, store.Add(ctx, entry))
+		require.NoError(t, store.Add(ctx, &entry))
 
 		// Reload from disk
 		store2 := NewStore(path)
@@ -460,7 +459,7 @@ func TestStore_Migration(t *testing.T) {
 				}
 			]
 		}`
-		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0o600))
 
 		// Load with the store - should migrate automatically
 		store := NewStore(path)
@@ -480,7 +479,7 @@ func TestStore_Migration(t *testing.T) {
 			"version": 1,
 			"entries": [{"id": "abc123", "repo_id": "myrepo", "branch": "main", "status": "running"}]
 		}`
-		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0o600))
 
 		// Load and modify to trigger save
 		store := NewStore(path)
@@ -488,10 +487,10 @@ func TestStore_Migration(t *testing.T) {
 		require.NoError(t, err)
 
 		entry.Status = StatusStopped
-		require.NoError(t, store.Update(ctx, *entry))
+		require.NoError(t, store.Update(ctx, entry))
 
 		// Read raw file to check version
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // test file path is safe
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `"version": 2`)
 	})
@@ -507,7 +506,7 @@ func TestStore_Migration(t *testing.T) {
 				{"id": "b", "repo_id": "repo2", "branch": "dev"}
 			]
 		}`
-		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(v1Catalog), 0o600))
 
 		store := NewStore(path)
 		entries, err := store.List(ctx, ListFilter{})
@@ -522,10 +521,10 @@ func TestStore_Migration(t *testing.T) {
 
 func TestSessionType_Values(t *testing.T) {
 	// Verify session type constants have expected values
-	assert.Equal(t, SessionType("shell"), SessionTypeShell)
-	assert.Equal(t, SessionType("claude"), SessionTypeClaude)
-	assert.Equal(t, SessionType("gemini"), SessionTypeGemini)
-	assert.Equal(t, SessionType("codex"), SessionTypeCodex)
+	assert.Equal(t, SessionTypeShell, SessionType("shell"))
+	assert.Equal(t, SessionTypeClaude, SessionType("claude"))
+	assert.Equal(t, SessionTypeGemini, SessionType("gemini"))
+	assert.Equal(t, SessionTypeCodex, SessionType("codex"))
 }
 
 var _ = fmt.Sprintf // use fmt package

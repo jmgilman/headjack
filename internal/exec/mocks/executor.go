@@ -5,8 +5,9 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/exec"
 	"sync"
+
+	"github.com/jmgilman/headjack/internal/exec"
 )
 
 // Ensure, that ExecutorMock does implement exec.Executor.
@@ -22,7 +23,7 @@ var _ exec.Executor = &ExecutorMock{}
 //			LookPathFunc: func(name string) (string, error) {
 //				panic("mock out the LookPath method")
 //			},
-//			RunFunc: func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+//			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 //				panic("mock out the Run method")
 //			},
 //		}
@@ -36,7 +37,7 @@ type ExecutorMock struct {
 	LookPathFunc func(name string) (string, error)
 
 	// RunFunc mocks the Run method.
-	RunFunc func(ctx context.Context, opts exec.RunOptions) (*exec.Result, error)
+	RunFunc func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -50,7 +51,7 @@ type ExecutorMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Opts is the opts argument value.
-			Opts exec.RunOptions
+			Opts *exec.RunOptions
 		}
 	}
 	lockLookPath sync.RWMutex
@@ -90,13 +91,13 @@ func (mock *ExecutorMock) LookPathCalls() []struct {
 }
 
 // Run calls RunFunc.
-func (mock *ExecutorMock) Run(ctx context.Context, opts exec.RunOptions) (*exec.Result, error) {
+func (mock *ExecutorMock) Run(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 	if mock.RunFunc == nil {
 		panic("ExecutorMock.RunFunc: method is nil but Executor.Run was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Opts exec.RunOptions
+		Opts *exec.RunOptions
 	}{
 		Ctx:  ctx,
 		Opts: opts,
@@ -113,11 +114,11 @@ func (mock *ExecutorMock) Run(ctx context.Context, opts exec.RunOptions) (*exec.
 //	len(mockedExecutor.RunCalls())
 func (mock *ExecutorMock) RunCalls() []struct {
 	Ctx  context.Context
-	Opts exec.RunOptions
+	Opts *exec.RunOptions
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Opts exec.RunOptions
+		Opts *exec.RunOptions
 	}
 	mock.lockRun.RLock()
 	calls = mock.calls.Run

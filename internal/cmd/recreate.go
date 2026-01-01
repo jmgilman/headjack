@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/spf13/cobra"
+
+	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var recreateCmd = &cobra.Command{
@@ -47,7 +48,10 @@ The worktree (and all git-tracked and untracked files) is preserved.`,
 
 		// Determine image to use (precedence: flag > config)
 		// Config already has defaults set via Viper, so just use it
-		image, _ := cmd.Flags().GetString("base")
+		image, err := cmd.Flags().GetString("base")
+		if err != nil {
+			return fmt.Errorf("get base flag: %w", err)
+		}
 		if image == "" {
 			if cfg := ConfigFromContext(cmd.Context()); cfg != nil {
 				image = cfg.Default.BaseImage

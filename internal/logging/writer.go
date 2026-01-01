@@ -18,6 +18,7 @@ type TeeWriter struct {
 // NewTeeWriter creates a TeeWriter that writes to both the primary writer
 // and the specified log file path. The log file is created or truncated.
 func NewTeeWriter(primary io.Writer, logPath string) (*TeeWriter, error) {
+	//nolint:gosec // G304: logPath is constructed from trusted PathManager, not arbitrary user input
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("create log file: %w", err)
@@ -32,7 +33,8 @@ func NewTeeWriter(primary io.Writer, logPath string) (*TeeWriter, error) {
 // NewTeeWriterAppend creates a TeeWriter that writes to both the primary writer
 // and appends to the specified log file path.
 func NewTeeWriterAppend(primary io.Writer, logPath string) (*TeeWriter, error) {
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	//nolint:gosec // G302/G304: logPath is from trusted PathManager; 0644 needed for log rotation tools
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open log file for append: %w", err)
 	}
@@ -121,6 +123,7 @@ type SessionWriters struct {
 // that write to a single combined log file.
 func NewSessionWriters(stdout, stderr io.Writer, logPath string) (*SessionWriters, error) {
 	// Create a single log file that both stdout and stderr write to
+	//nolint:gosec // G304: logPath is constructed from trusted PathManager, not arbitrary user input
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("create session log file: %w", err)
@@ -134,7 +137,8 @@ func NewSessionWriters(stdout, stderr io.Writer, logPath string) (*SessionWriter
 
 // NewSessionWritersAppend creates tee writers that append to an existing log file.
 func NewSessionWritersAppend(stdout, stderr io.Writer, logPath string) (*SessionWriters, error) {
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	//nolint:gosec // G302/G304: logPath is from trusted PathManager; 0644 needed for log rotation tools
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open session log file for append: %w", err)
 	}

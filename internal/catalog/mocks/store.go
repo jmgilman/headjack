@@ -5,8 +5,9 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/catalog"
 	"sync"
+
+	"github.com/jmgilman/headjack/internal/catalog"
 )
 
 // Ensure, that StoreMock does implement catalog.Store.
@@ -19,7 +20,7 @@ var _ catalog.Store = &StoreMock{}
 //
 //		// make and configure a mocked catalog.Store
 //		mockedStore := &StoreMock{
-//			AddFunc: func(ctx context.Context, entry catalog.Entry) error {
+//			AddFunc: func(ctx context.Context, entry *catalog.Entry) error {
 //				panic("mock out the Add method")
 //			},
 //			GetFunc: func(ctx context.Context, id string) (*catalog.Entry, error) {
@@ -34,7 +35,7 @@ var _ catalog.Store = &StoreMock{}
 //			RemoveFunc: func(ctx context.Context, id string) error {
 //				panic("mock out the Remove method")
 //			},
-//			UpdateFunc: func(ctx context.Context, entry catalog.Entry) error {
+//			UpdateFunc: func(ctx context.Context, entry *catalog.Entry) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -45,7 +46,7 @@ var _ catalog.Store = &StoreMock{}
 //	}
 type StoreMock struct {
 	// AddFunc mocks the Add method.
-	AddFunc func(ctx context.Context, entry catalog.Entry) error
+	AddFunc func(ctx context.Context, entry *catalog.Entry) error
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, id string) (*catalog.Entry, error)
@@ -60,7 +61,7 @@ type StoreMock struct {
 	RemoveFunc func(ctx context.Context, id string) error
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, entry catalog.Entry) error
+	UpdateFunc func(ctx context.Context, entry *catalog.Entry) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -69,7 +70,7 @@ type StoreMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Entry is the entry argument value.
-			Entry catalog.Entry
+			Entry *catalog.Entry
 		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
@@ -106,7 +107,7 @@ type StoreMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Entry is the entry argument value.
-			Entry catalog.Entry
+			Entry *catalog.Entry
 		}
 	}
 	lockAdd             sync.RWMutex
@@ -118,13 +119,13 @@ type StoreMock struct {
 }
 
 // Add calls AddFunc.
-func (mock *StoreMock) Add(ctx context.Context, entry catalog.Entry) error {
+func (mock *StoreMock) Add(ctx context.Context, entry *catalog.Entry) error {
 	if mock.AddFunc == nil {
 		panic("StoreMock.AddFunc: method is nil but Store.Add was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Entry catalog.Entry
+		Entry *catalog.Entry
 	}{
 		Ctx:   ctx,
 		Entry: entry,
@@ -141,11 +142,11 @@ func (mock *StoreMock) Add(ctx context.Context, entry catalog.Entry) error {
 //	len(mockedStore.AddCalls())
 func (mock *StoreMock) AddCalls() []struct {
 	Ctx   context.Context
-	Entry catalog.Entry
+	Entry *catalog.Entry
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Entry catalog.Entry
+		Entry *catalog.Entry
 	}
 	mock.lockAdd.RLock()
 	calls = mock.calls.Add
@@ -302,13 +303,13 @@ func (mock *StoreMock) RemoveCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *StoreMock) Update(ctx context.Context, entry catalog.Entry) error {
+func (mock *StoreMock) Update(ctx context.Context, entry *catalog.Entry) error {
 	if mock.UpdateFunc == nil {
 		panic("StoreMock.UpdateFunc: method is nil but Store.Update was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Entry catalog.Entry
+		Entry *catalog.Entry
 	}{
 		Ctx:   ctx,
 		Entry: entry,
@@ -325,11 +326,11 @@ func (mock *StoreMock) Update(ctx context.Context, entry catalog.Entry) error {
 //	len(mockedStore.UpdateCalls())
 func (mock *StoreMock) UpdateCalls() []struct {
 	Ctx   context.Context
-	Entry catalog.Entry
+	Entry *catalog.Entry
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Entry catalog.Entry
+		Entry *catalog.Entry
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

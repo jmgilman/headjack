@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -20,17 +21,17 @@ const containerNamePrefix = "hjk"
 
 // catalogStore is the internal interface for catalog operations.
 type catalogStore interface {
-	Add(ctx context.Context, entry catalog.Entry) error
+	Add(ctx context.Context, entry *catalog.Entry) error
 	Get(ctx context.Context, id string) (*catalog.Entry, error)
 	GetByRepoBranch(ctx context.Context, repoID, branch string) (*catalog.Entry, error)
-	Update(ctx context.Context, entry catalog.Entry) error
+	Update(ctx context.Context, entry *catalog.Entry) error
 	Remove(ctx context.Context, id string) error
 	List(ctx context.Context, filter catalog.ListFilter) ([]catalog.Entry, error)
 }
 
 // containerRuntime is the internal interface for container operations.
 type containerRuntime interface {
-	Run(ctx context.Context, cfg container.RunConfig) (*container.Container, error)
+	Run(ctx context.Context, cfg *container.RunConfig) (*container.Container, error)
 	Exec(ctx context.Context, id string, cfg container.ExecConfig) error
 	Stop(ctx context.Context, id string) error
 	Remove(ctx context.Context, id string) error
@@ -57,11 +58,11 @@ type Manager struct {
 }
 
 // NewManager creates a new instance manager.
-func NewManager(catalog catalogStore, runtime containerRuntime, git gitOpener, cfg ManagerConfig) *Manager {
+func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, cfg ManagerConfig) *Manager {
 	return &Manager{
-		catalog:      catalog,
+		catalog:      store,
 		runtime:      runtime,
-		git:          git,
+		git:          opener,
 		worktreesDir: cfg.WorktreesDir,
 	}
 }
@@ -105,23 +106,23 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		CreatedAt: time.Now(),
 		Status:    catalog.StatusCreating,
 	}
-	if err := m.catalog.Add(ctx, entry); err != nil {
-		return nil, fmt.Errorf("add catalog entry: %w", err)
+	if addErr := m.catalog.Add(ctx, &entry); addErr != nil {
+		return nil, fmt.Errorf("add catalog entry: %w", addErr)
 	}
 
 	// Cleanup on failure
 	cleanup := func() {
-		_ = m.catalog.Remove(ctx, id)
+		_ = m.catalog.Remove(ctx, id) //nolint:errcheck // best-effort cleanup
 	}
 
 	// Create worktree
-	if err := repo.CreateWorktree(ctx, worktreePath, cfg.Branch); err != nil {
+	if wtErr := repo.CreateWorktree(ctx, worktreePath, cfg.Branch); wtErr != nil {
 		cleanup()
-		return nil, fmt.Errorf("create worktree: %w", err)
+		return nil, fmt.Errorf("create worktree: %w", wtErr)
 	}
 
 	// Create container
-	c, err := m.runtime.Run(ctx, container.RunConfig{
+	c, err := m.runtime.Run(ctx, &container.RunConfig{
 		Name:  containerName,
 		Image: cfg.Image,
 		Mounts: []container.Mount{
@@ -130,7 +131,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 	})
 	if err != nil {
 		// Cleanup worktree on container failure
-		_ = repo.RemoveWorktree(ctx, worktreePath)
+		_ = repo.RemoveWorktree(ctx, worktreePath) //nolint:errcheck // best-effort cleanup
 		cleanup()
 		return nil, fmt.Errorf("create container: %w", err)
 	}
@@ -138,13 +139,13 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 	// Update catalog with container info
 	entry.ContainerID = c.ID
 	entry.Status = catalog.StatusRunning
-	if err := m.catalog.Update(ctx, entry); err != nil {
+	if updateErr := m.catalog.Update(ctx, &entry); updateErr != nil {
 		// Best-effort cleanup
-		_ = m.runtime.Stop(ctx, c.ID)
-		_ = m.runtime.Remove(ctx, c.ID)
-		_ = repo.RemoveWorktree(ctx, worktreePath)
+		_ = m.runtime.Stop(ctx, c.ID)              //nolint:errcheck // best-effort cleanup
+		_ = m.runtime.Remove(ctx, c.ID)            //nolint:errcheck // best-effort cleanup
+		_ = repo.RemoveWorktree(ctx, worktreePath) //nolint:errcheck // best-effort cleanup
 		cleanup()
-		return nil, fmt.Errorf("update catalog entry: %w", err)
+		return nil, fmt.Errorf("update catalog entry: %w", updateErr)
 	}
 
 	return &Instance{
@@ -202,8 +203,8 @@ func (m *Manager) List(ctx context.Context, filter ListFilter) ([]Instance, erro
 	}
 
 	instances := make([]Instance, 0, len(entries))
-	for _, entry := range entries {
-		inst, err := m.entryToInstance(ctx, &entry)
+	for i := range entries {
+		inst, err := m.entryToInstance(ctx, &entries[i])
 		if err != nil {
 			// Log and continue on individual failures
 			continue
@@ -233,7 +234,7 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 	}
 
 	entry.Status = catalog.StatusStopped
-	if err := m.catalog.Update(ctx, *entry); err != nil {
+	if err := m.catalog.Update(ctx, entry); err != nil {
 		return fmt.Errorf("update catalog entry: %w", err)
 	}
 
@@ -252,15 +253,15 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 
 	// Stop and remove container (best-effort)
 	if entry.ContainerID != "" {
-		_ = m.runtime.Stop(ctx, entry.ContainerID)
-		_ = m.runtime.Remove(ctx, entry.ContainerID)
+		_ = m.runtime.Stop(ctx, entry.ContainerID)   //nolint:errcheck // best-effort cleanup
+		_ = m.runtime.Remove(ctx, entry.ContainerID) //nolint:errcheck // best-effort cleanup
 	}
 
 	// Remove worktree (best-effort)
 	if entry.Worktree != "" {
-		repo, err := m.git.Open(ctx, entry.Repo)
-		if err == nil {
-			_ = repo.RemoveWorktree(ctx, entry.Worktree)
+		repo, repoErr := m.git.Open(ctx, entry.Repo)
+		if repoErr == nil {
+			_ = repo.RemoveWorktree(ctx, entry.Worktree) //nolint:errcheck // best-effort cleanup
 		}
 	}
 
@@ -273,7 +274,7 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 }
 
 // Recreate removes the container and creates a new one with the specified image.
-func (m *Manager) Recreate(ctx context.Context, id string, image string) (*Instance, error) {
+func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, error) {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
 		if err == catalog.ErrNotFound {
@@ -284,17 +285,17 @@ func (m *Manager) Recreate(ctx context.Context, id string, image string) (*Insta
 
 	// Stop and remove old container
 	if entry.ContainerID != "" {
-		_ = m.runtime.Stop(ctx, entry.ContainerID)
-		if err := m.runtime.Remove(ctx, entry.ContainerID); err != nil {
-			if err != container.ErrNotFound {
-				return nil, fmt.Errorf("remove old container: %w", err)
+		_ = m.runtime.Stop(ctx, entry.ContainerID) //nolint:errcheck // best-effort cleanup
+		if removeErr := m.runtime.Remove(ctx, entry.ContainerID); removeErr != nil {
+			if removeErr != container.ErrNotFound {
+				return nil, fmt.Errorf("remove old container: %w", removeErr)
 			}
 		}
 	}
 
 	// Create new container
 	containerName := m.containerName(entry.RepoID, entry.Branch)
-	c, err := m.runtime.Run(ctx, container.RunConfig{
+	c, err := m.runtime.Run(ctx, &container.RunConfig{
 		Name:  containerName,
 		Image: image,
 		Mounts: []container.Mount{
@@ -303,14 +304,14 @@ func (m *Manager) Recreate(ctx context.Context, id string, image string) (*Insta
 	})
 	if err != nil {
 		entry.Status = catalog.StatusError
-		_ = m.catalog.Update(ctx, *entry)
+		_ = m.catalog.Update(ctx, entry) //nolint:errcheck // best-effort status update
 		return nil, fmt.Errorf("create container: %w", err)
 	}
 
 	// Update catalog
 	entry.ContainerID = c.ID
 	entry.Status = catalog.StatusRunning
-	if err := m.catalog.Update(ctx, *entry); err != nil {
+	if err := m.catalog.Update(ctx, entry); err != nil {
 		return nil, fmt.Errorf("update catalog entry: %w", err)
 	}
 
@@ -339,7 +340,7 @@ func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error
 	}
 
 	if entry.ContainerID == "" {
-		return fmt.Errorf("instance has no container")
+		return errors.New("instance has no container")
 	}
 
 	// Check container status
@@ -349,7 +350,7 @@ func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error
 	}
 
 	if c.Status != container.StatusRunning {
-		return fmt.Errorf("container is not running")
+		return errors.New("container is not running")
 	}
 
 	// Build command (default to shell if empty)

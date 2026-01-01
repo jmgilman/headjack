@@ -10,12 +10,14 @@ import (
 type executor struct{}
 
 // New returns a new Executor that uses os/exec.
-func New() *executor {
+func New() Executor {
 	return &executor{}
 }
 
-func (e *executor) Run(ctx context.Context, opts RunOptions) (*Result, error) {
-	cmd := exec.CommandContext(ctx, opts.Name, opts.Args...)
+func (e *executor) Run(ctx context.Context, opts *RunOptions) (*Result, error) {
+	// G204: This is intentional - we're an executor that runs user-specified commands.
+	// The caller is responsible for validating the command and arguments.
+	cmd := exec.CommandContext(ctx, opts.Name, opts.Args...) //nolint:gosec // Intentional subprocess execution
 
 	if opts.Dir != "" {
 		cmd.Dir = opts.Dir

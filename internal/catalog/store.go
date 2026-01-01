@@ -13,8 +13,8 @@ import (
 
 const (
 	lockTimeout    = 5 * time.Second
-	fileMode       = 0644
-	dirMode        = 0755
+	fileMode       = 0o644
+	dirMode        = 0o755
 	currentVersion = 2 // Bump when schema changes
 )
 
@@ -30,20 +30,20 @@ type jsonStore struct {
 }
 
 // NewStore creates a new JSON-backed catalog store.
-func NewStore(path string) *jsonStore {
+func NewStore(path string) Store {
 	return &jsonStore{path: path}
 }
 
-func (s *jsonStore) Add(ctx context.Context, entry Entry) error {
+func (s *jsonStore) Add(ctx context.Context, entry *Entry) error {
 	return s.withExclusiveLock(ctx, func(cf *catalogFile) error {
 		// Check for duplicate
-		for _, e := range cf.Entries {
-			if e.RepoID == entry.RepoID && e.Branch == entry.Branch {
+		for i := range cf.Entries {
+			if cf.Entries[i].RepoID == entry.RepoID && cf.Entries[i].Branch == entry.Branch {
 				return ErrAlreadyExists
 			}
 		}
 
-		cf.Entries = append(cf.Entries, entry)
+		cf.Entries = append(cf.Entries, *entry)
 		return nil
 	})
 }
@@ -82,11 +82,11 @@ func (s *jsonStore) GetByRepoBranch(ctx context.Context, repoID, branch string) 
 	return result, err
 }
 
-func (s *jsonStore) Update(ctx context.Context, entry Entry) error {
+func (s *jsonStore) Update(ctx context.Context, entry *Entry) error {
 	return s.withExclusiveLock(ctx, func(cf *catalogFile) error {
 		for i := range cf.Entries {
 			if cf.Entries[i].ID == entry.ID {
-				cf.Entries[i] = entry
+				cf.Entries[i] = *entry
 				return nil
 			}
 		}
@@ -110,14 +110,14 @@ func (s *jsonStore) List(ctx context.Context, filter ListFilter) ([]Entry, error
 	var result []Entry
 
 	err := s.withSharedLock(ctx, func(cf *catalogFile) error {
-		for _, e := range cf.Entries {
-			if filter.RepoID != "" && e.RepoID != filter.RepoID {
+		for i := range cf.Entries {
+			if filter.RepoID != "" && cf.Entries[i].RepoID != filter.RepoID {
 				continue
 			}
-			if filter.Status != "" && e.Status != filter.Status {
+			if filter.Status != "" && cf.Entries[i].Status != filter.Status {
 				continue
 			}
-			result = append(result, e)
+			result = append(result, cf.Entries[i])
 		}
 		return nil
 	})
@@ -180,9 +180,9 @@ func (s *jsonStore) openAndLock(ctx context.Context, exclusive bool) (*catalogFi
 		lockType = syscall.LOCK_EX
 	}
 
-	if err := s.acquireLock(ctx, file, lockType); err != nil {
+	if lockErr := s.acquireLock(ctx, file, lockType); lockErr != nil {
 		file.Close()
-		return nil, nil, err
+		return nil, nil, lockErr
 	}
 
 	// Load catalog
@@ -229,6 +229,7 @@ func (s *jsonStore) acquireLock(ctx context.Context, file *os.File, lockType int
 
 // unlockAndClose releases the lock and closes the file.
 func (s *jsonStore) unlockAndClose(file *os.File) {
+	//nolint:errcheck // Unlock errors are not actionable during cleanup
 	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 	file.Close()
 }
@@ -292,6 +293,7 @@ func (s *jsonStore) save(cf *catalogFile) error {
 	// Clean up on error
 	defer func() {
 		if tmpPath != "" {
+			//nolint:errcheck // Cleanup errors are not actionable
 			os.Remove(tmpPath)
 		}
 	}()

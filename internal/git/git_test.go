@@ -32,7 +32,7 @@ func testRepo(t *testing.T) string {
 	ctx := context.Background()
 
 	// Initialize repo
-	_, err := e.Run(ctx, exec.RunOptions{
+	_, err := e.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"init"},
 		Dir:  dir,
@@ -40,14 +40,14 @@ func testRepo(t *testing.T) string {
 	require.NoError(t, err, "git init")
 
 	// Configure git user (required for commits)
-	_, err = e.Run(ctx, exec.RunOptions{
+	_, err = e.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"config", "user.email", "test@test.com"},
 		Dir:  dir,
 	})
 	require.NoError(t, err, "git config email")
 
-	_, err = e.Run(ctx, exec.RunOptions{
+	_, err = e.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"config", "user.name", "Test User"},
 		Dir:  dir,
@@ -56,17 +56,17 @@ func testRepo(t *testing.T) string {
 
 	// Create initial commit
 	testFile := filepath.Join(dir, "README.md")
-	err = os.WriteFile(testFile, []byte("# Test Repo\n"), 0644)
+	err = os.WriteFile(testFile, []byte("# Test Repo\n"), 0o600)
 	require.NoError(t, err, "create test file")
 
-	_, err = e.Run(ctx, exec.RunOptions{
+	_, err = e.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"add", "."},
 		Dir:  dir,
 	})
 	require.NoError(t, err, "git add")
 
-	_, err = e.Run(ctx, exec.RunOptions{
+	_, err = e.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"commit", "-m", "initial commit"},
 		Dir:  dir,
@@ -81,7 +81,7 @@ func createBranch(t *testing.T, repoDir, branch string) {
 	t.Helper()
 
 	e := exec.New()
-	_, err := e.Run(context.Background(), exec.RunOptions{
+	_, err := e.Run(context.Background(), &exec.RunOptions{
 		Name: "git",
 		Args: []string{"branch", branch},
 		Dir:  repoDir,
@@ -107,7 +107,7 @@ func TestOpener_Open(t *testing.T) {
 	t.Run("opens repository from subdirectory", func(t *testing.T) {
 		repoDir := testRepo(t)
 		subDir := filepath.Join(repoDir, "subdir")
-		require.NoError(t, os.MkdirAll(subDir, 0755))
+		require.NoError(t, os.MkdirAll(subDir, 0o750))
 
 		repo, err := opener.Open(ctx, subDir)
 
@@ -134,7 +134,7 @@ func TestOpener_Open(t *testing.T) {
 		// Should be "<dirname>-<7char hash>"
 		assert.Regexp(t, `^[^-]+-[a-f0-9]{7}$`, id)
 		// Should start with the directory name
-		assert.True(t, len(id) > 8, "identifier should be longer than 8 chars")
+		assert.Greater(t, len(id), 8, "identifier should be longer than 8 chars")
 	})
 }
 
@@ -161,8 +161,10 @@ func TestRepository_BranchExists(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check for master or main (depends on git version/config)
-		existsMaster, _ := repo.BranchExists(ctx, "master")
-		existsMain, _ := repo.BranchExists(ctx, "main")
+		existsMaster, errMaster := repo.BranchExists(ctx, "master")
+		existsMain, errMain := repo.BranchExists(ctx, "main")
+		require.NoError(t, errMaster)
+		require.NoError(t, errMain)
 
 		assert.True(t, existsMaster || existsMain, "default branch should exist")
 	})

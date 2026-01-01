@@ -5,8 +5,9 @@ package mocks
 
 import (
 	"context"
-	"github.com/jmgilman/headjack/internal/git"
 	"sync"
+
+	"github.com/jmgilman/headjack/internal/git"
 )
 
 // Ensure, that OpenerMock does implement git.Opener.

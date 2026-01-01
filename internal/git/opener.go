@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -14,8 +15,8 @@ type opener struct {
 }
 
 // NewOpener creates a new Opener that uses the provided Executor.
-func NewOpener(exec exec.Executor) *opener {
-	return &opener{exec: exec}
+func NewOpener(e exec.Executor) Opener {
+	return &opener{exec: e}
 }
 
 func (o *opener) Open(ctx context.Context, path string) (Repository, error) {
@@ -40,7 +41,7 @@ func (o *opener) Open(ctx context.Context, path string) (Repository, error) {
 
 // getRepoRoot returns the repository root for the given path.
 func (o *opener) getRepoRoot(ctx context.Context, path string) (string, error) {
-	result, err := o.exec.Run(ctx, exec.RunOptions{
+	result, err := o.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"rev-parse", "--show-toplevel"},
 		Dir:  path,
@@ -56,7 +57,7 @@ func (o *opener) getRepoRoot(ctx context.Context, path string) (string, error) {
 // Format: "<repo-name>-<short-initial-commit-hash>"
 func (o *opener) generateIdentifier(ctx context.Context, root string) (string, error) {
 	// Get the initial commit hash (first commit in history)
-	result, err := o.exec.Run(ctx, exec.RunOptions{
+	result, err := o.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"rev-list", "--max-parents=0", "HEAD"},
 		Dir:  root,
@@ -68,7 +69,7 @@ func (o *opener) generateIdentifier(ctx context.Context, root string) (string, e
 	// Take first line (in case of multiple roots) and first 7 chars
 	lines := strings.Split(strings.TrimSpace(string(result.Stdout)), "\n")
 	if len(lines) == 0 || lines[0] == "" {
-		return "", fmt.Errorf("no commits found in repository")
+		return "", errors.New("no commits found in repository")
 	}
 
 	hash := lines[0]

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/spf13/cobra"
+
+	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var stopCmd = &cobra.Command{

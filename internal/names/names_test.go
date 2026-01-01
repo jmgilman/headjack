@@ -23,7 +23,7 @@ func TestGenerate(t *testing.T) {
 func TestGenerate_Uniqueness(t *testing.T) {
 	// Generate multiple names and verify we get variety
 	names := make(map[string]bool)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		names[Generate()] = true
 	}
 
@@ -40,7 +40,7 @@ func TestGenerateUnique(t *testing.T) {
 	}
 
 	// Generate several unique names
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		name, err := GenerateUnique(existsFn, 100)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

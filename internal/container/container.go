@@ -18,6 +18,7 @@ var (
 // Status represents the container state.
 type Status string
 
+// Status constants represent possible container states.
 const (
 	StatusRunning Status = "running"
 	StatusStopped Status = "stopped"
@@ -75,7 +76,7 @@ type Runtime interface {
 	// Run creates and starts a new container.
 	// The container runs with systemd as init and stays running until stopped.
 	// Returns ErrAlreadyExists if a container with the same name exists.
-	Run(ctx context.Context, cfg RunConfig) (*Container, error)
+	Run(ctx context.Context, cfg *RunConfig) (*Container, error)
 
 	// Exec executes a command in a running container.
 	// If Interactive is true, sets up TTY with raw mode and forwards signals.
@@ -103,5 +104,5 @@ type Runtime interface {
 
 	// Build builds an OCI image from a Dockerfile.
 	// Returns ErrBuildFailed if the build fails.
-	Build(ctx context.Context, cfg BuildConfig) error
+	Build(ctx context.Context, cfg *BuildConfig) error
 }

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/spf13/cobra"
+
+	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var resumeCmd = &cobra.Command{
@@ -45,7 +46,10 @@ shell sessions or agents to run concurrently within a single instance.`,
 		fmt.Printf("Resuming instance %s for branch %s\n", inst.ID, inst.Branch)
 
 		// Build attach config
-		agent, _ := cmd.Flags().GetString("agent")
+		agent, err := cmd.Flags().GetString("agent")
+		if err != nil {
+			return fmt.Errorf("get agent flag: %w", err)
+		}
 		attachCfg := instance.AttachConfig{
 			Interactive: true,
 			Workdir:     "/workspace",
@@ -53,11 +57,11 @@ shell sessions or agents to run concurrently within a single instance.`,
 
 		if agent != "" {
 			// Resolve "default" sentinel to config value
-			if agent == "default" {
+			if agent == agentDefaultSentinel {
 				if cfg := ConfigFromContext(cmd.Context()); cfg != nil && cfg.Default.Agent != "" {
 					agent = cfg.Default.Agent
 				} else {
-					return fmt.Errorf("--agent specified without value but no default.agent configured")
+					return errors.New("--agent specified without value but no default.agent configured")
 				}
 			}
 
@@ -87,5 +91,5 @@ func init() {
 
 	resumeCmd.Flags().String("agent", "", "start the specified agent instead of dropping into a shell")
 	// Set NoOptDefVal so --agent without a value uses "default" as sentinel
-	resumeCmd.Flags().Lookup("agent").NoOptDefVal = "default"
+	resumeCmd.Flags().Lookup("agent").NoOptDefVal = agentDefaultSentinel
 }

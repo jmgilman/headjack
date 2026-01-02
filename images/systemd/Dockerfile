@@ -10,7 +10,8 @@ FROM base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Switch to root for package installation (base image ends with USER developer)
+# Switch to root - systemd requires root privileges as PID 1
+# hadolint ignore=DL3002
 USER root
 
 # =============================================================================

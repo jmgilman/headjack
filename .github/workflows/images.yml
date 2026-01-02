@@ -1,0 +1,57 @@
+name: Images
+
+on:
+  pull_request:
+    paths:
+      - 'images/**'
+      - '.github/workflows/images.yml'
+      - '.github/workflows/build-image.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'images/**'
+      - '.github/workflows/images.yml'
+      - '.github/workflows/build-image.yml'
+  release:
+    types: [published]
+
+jobs:
+  base:
+    uses: ./.github/workflows/build-image.yml
+    with:
+      variant: base
+      context: images/base
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+
+  systemd:
+    needs: base
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/build-image.yml
+    with:
+      variant: systemd
+      context: images/systemd
+      base_variant: base
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+
+  dind:
+    needs: systemd
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/build-image.yml
+    with:
+      variant: dind
+      context: images/dind
+      base_variant: systemd
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write

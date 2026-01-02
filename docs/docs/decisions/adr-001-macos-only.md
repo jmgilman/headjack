@@ -1,3 +1,9 @@
+---
+sidebar_position: 1
+title: "ADR-001: macOS-Only Platform Support"
+description: Decision to support macOS exclusively for initial release
+---
+
 # ADR 001: macOS-Only Platform Support
 
 ## Status

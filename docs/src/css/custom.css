@@ -1,0 +1,26 @@
+/**
+ * Headjack documentation theme
+ */
+
+:root {
+  --ifm-color-primary: #5b6ee1;
+  --ifm-color-primary-dark: #4359dc;
+  --ifm-color-primary-darker: #3750da;
+  --ifm-color-primary-darkest: #2740c1;
+  --ifm-color-primary-light: #7383e6;
+  --ifm-color-primary-lighter: #7f8de8;
+  --ifm-color-primary-lightest: #a3adf0;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7c8cff;
+  --ifm-color-primary-dark: #5a6dff;
+  --ifm-color-primary-darker: #495eff;
+  --ifm-color-primary-darkest: #1731ff;
+  --ifm-color-primary-light: #9eabff;
+  --ifm-color-primary-lighter: #afbaff;
+  --ifm-color-primary-lightest: #e3e7ff;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}

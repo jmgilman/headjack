@@ -1,0 +1,8 @@
+{
+  "label": "Decisions (ADRs)",
+  "position": 6,
+  "link": {
+    "type": "doc",
+    "id": "decisions/index"
+  }
+}

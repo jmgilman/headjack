@@ -1,3 +1,9 @@
+---
+sidebar_position: 3
+title: "ADR-003: Go as Implementation Language"
+description: Decision to implement Headjack in Go
+---
+
 # ADR 003: Go as Implementation Language
 
 ## Status

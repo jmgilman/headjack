@@ -1,3 +1,9 @@
+---
+sidebar_position: 4
+title: "ADR-004: CLI-Based Agents"
+description: Decision to focus on CLI-based agents with subscription pricing
+---
+
 # ADR 004: CLI-Based Agents over API-Based Automation
 
 ## Status

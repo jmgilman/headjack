@@ -14,13 +14,18 @@ import (
 	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/container"
 	hjexec "github.com/jmgilman/headjack/internal/exec"
+	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
+	"github.com/jmgilman/headjack/internal/registry"
 )
 
 // baseDeps lists the external binaries that must always be available.
 var baseDeps = []string{"git"}
+
+// runtimeNameApple is the runtime name for Apple's container framework.
+const runtimeNameApple = "apple"
 
 // mgr is the instance manager, initialized in PersistentPreRunE.
 var mgr *instance.Manager
@@ -124,7 +129,7 @@ func checkDependencies() error {
 
 // getRuntimeBinary returns the binary name for the configured runtime.
 func getRuntimeBinary() string {
-	if appConfig != nil && appConfig.Runtime.Name == "apple" {
+	if appConfig != nil && appConfig.Runtime.Name == runtimeNameApple {
 		return "container"
 	}
 	// Default to podman
@@ -164,20 +169,10 @@ func initManager(muxOverride string) error {
 		runtimeName = appConfig.Runtime.Name
 	}
 	switch runtimeName {
-	case "apple":
-		appleCfg := container.AppleConfig{}
-		if appConfig != nil {
-			appleCfg.Privileged = appConfig.Runtime.Privileged
-			appleCfg.Flags = appConfig.Runtime.Flags
-		}
-		runtime = container.NewAppleRuntime(executor, appleCfg)
+	case runtimeNameApple:
+		runtime = container.NewAppleRuntime(executor, container.AppleConfig{})
 	default:
-		podmanCfg := container.PodmanConfig{}
-		if appConfig != nil {
-			podmanCfg.Privileged = appConfig.Runtime.Privileged
-			podmanCfg.Flags = appConfig.Runtime.Flags
-		}
-		runtime = container.NewPodmanRuntime(executor, podmanCfg)
+		runtime = container.NewPodmanRuntime(executor, container.PodmanConfig{})
 	}
 
 	opener := git.NewOpener(executor)
@@ -198,12 +193,46 @@ func initManager(muxOverride string) error {
 		mux = multiplexer.NewTmux(executor)
 	}
 
-	mgr = instance.NewManager(store, runtime, opener, mux, instance.ManagerConfig{
+	// Create registry client for fetching image metadata
+	regClient := registry.NewClient(registry.ClientConfig{})
+
+	// Map runtime name to RuntimeType
+	runtimeType := runtimeNameToType(runtimeName)
+
+	// Parse config flags for merging with image label flags
+	configFlags, err := getConfigFlags()
+	if err != nil {
+		return err
+	}
+
+	mgr = instance.NewManager(store, runtime, opener, mux, regClient, instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
 		LogsDir:      logsDir,
+		RuntimeType:  runtimeType,
+		ConfigFlags:  configFlags,
 	})
 
 	return nil
+}
+
+// runtimeNameToType converts a runtime name string to RuntimeType.
+func runtimeNameToType(name string) instance.RuntimeType {
+	if name == runtimeNameApple {
+		return instance.RuntimeApple
+	}
+	return instance.RuntimePodman
+}
+
+// getConfigFlags parses runtime flags from config.
+func getConfigFlags() (flags.Flags, error) {
+	if appConfig == nil || appConfig.Runtime.Flags == nil {
+		return make(flags.Flags), nil
+	}
+	configFlags, err := flags.FromConfig(appConfig.Runtime.Flags)
+	if err != nil {
+		return nil, fmt.Errorf("parse runtime flags: %w", err)
+	}
+	return configFlags, nil
 }
 
 // formatList joins strings with commas and "and" before the last item.

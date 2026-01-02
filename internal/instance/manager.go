@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -13,10 +14,12 @@ import (
 
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/container"
+	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/logging"
 	"github.com/jmgilman/headjack/internal/multiplexer"
 	"github.com/jmgilman/headjack/internal/names"
+	"github.com/jmgilman/headjack/internal/registry"
 )
 
 // containerNamePrefix is the prefix for all managed containers.
@@ -57,10 +60,26 @@ type sessionMultiplexer interface {
 	KillSession(ctx context.Context, sessionName string) error
 }
 
+// registryClient is the internal interface for fetching image metadata.
+type registryClient interface {
+	GetMetadata(ctx context.Context, ref string) (*registry.ImageMetadata, error)
+}
+
+// RuntimeType identifies the container runtime being used.
+type RuntimeType string
+
+// Runtime type constants.
+const (
+	RuntimePodman RuntimeType = "podman"
+	RuntimeApple  RuntimeType = "apple"
+)
+
 // ManagerConfig configures the Manager.
 type ManagerConfig struct {
-	WorktreesDir string // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
-	LogsDir      string // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
+	WorktreesDir string      // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
+	LogsDir      string      // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
+	RuntimeType  RuntimeType // Container runtime type (podman or apple)
+	ConfigFlags  flags.Flags // Flags from config file (take precedence over image labels)
 }
 
 // Manager orchestrates instance lifecycle operations.
@@ -69,20 +88,94 @@ type Manager struct {
 	runtime      containerRuntime
 	git          gitOpener
 	mux          sessionMultiplexer
+	registry     registryClient
 	logPaths     *logging.PathManager
 	worktreesDir string
+	runtimeType  RuntimeType
+	configFlags  flags.Flags
 }
 
 // NewManager creates a new instance manager.
-func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, cfg ManagerConfig) *Manager {
+func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, reg registryClient, cfg ManagerConfig) *Manager {
+	runtimeType := cfg.RuntimeType
+	if runtimeType == "" {
+		runtimeType = RuntimePodman // Default to Podman for backward compatibility
+	}
+
 	return &Manager{
 		catalog:      store,
 		runtime:      runtime,
 		git:          opener,
 		mux:          mux,
+		registry:     reg,
 		logPaths:     logging.NewPathManager(cfg.LogsDir),
 		worktreesDir: cfg.WorktreesDir,
+		runtimeType:  runtimeType,
+		configFlags:  cfg.ConfigFlags,
 	}
+}
+
+// imageRuntimeConfig holds image-specific runtime configuration extracted from labels.
+type imageRuntimeConfig struct {
+	Init  string      // Init command (default: "sleep infinity")
+	Flags flags.Flags // Runtime-specific flags parsed from label (e.g., "systemd=always")
+}
+
+// Label constants for image runtime configuration.
+const (
+	labelInit        = "io.headjack.init"
+	labelPodmanFlags = "io.headjack.podman.flags"
+	labelAppleFlags  = "io.headjack.apple.flags"
+)
+
+// getImageRuntimeConfig fetches image metadata and extracts runtime configuration from labels.
+// Returns default values if the registry client is nil or metadata cannot be fetched.
+// Runtime-specific flags are extracted based on the configured runtime type:
+// - Podman: io.headjack.podman.flags
+// - Apple: io.headjack.apple.flags
+func (m *Manager) getImageRuntimeConfig(ctx context.Context, image string) imageRuntimeConfig {
+	cfg := imageRuntimeConfig{
+		Init: "", // Empty means runtime will use default "sleep infinity"
+	}
+
+	if m.registry == nil {
+		return cfg
+	}
+
+	metadata, err := m.registry.GetMetadata(ctx, image)
+	if err != nil {
+		// Log warning - image will run with defaults (sleep infinity, no special flags)
+		// This may cause systemd images to fail if they require --systemd=always
+		fmt.Fprintf(os.Stderr, "warning: failed to fetch image metadata for %s: %v (using defaults)\n", image, err)
+		return cfg
+	}
+
+	if metadata.Labels != nil {
+		if v, ok := metadata.Labels[labelInit]; ok {
+			cfg.Init = v
+		}
+		// Extract runtime-specific flags based on runtime type
+		var flagsLabel string
+		switch m.runtimeType {
+		case RuntimePodman:
+			flagsLabel = labelPodmanFlags
+		case RuntimeApple:
+			flagsLabel = labelAppleFlags
+		}
+		if flagsLabel != "" {
+			if v, ok := metadata.Labels[flagsLabel]; ok {
+				parsedFlags, parseErr := flags.FromLabel(v)
+				if parseErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to parse %s flags from image %s: %v\n",
+						m.runtimeType, image, parseErr)
+				} else {
+					cfg.Flags = parsedFlags
+				}
+			}
+		}
+	}
+
+	return cfg
 }
 
 // Create creates a new instance for the given repository and branch.
@@ -139,6 +232,12 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		return nil, fmt.Errorf("create worktree: %w", wtErr)
 	}
 
+	// Fetch image metadata to get runtime configuration from labels
+	imgCfg := m.getImageRuntimeConfig(ctx, cfg.Image)
+
+	// Merge flags: config takes precedence over image labels
+	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+
 	// Create container
 	c, err := m.runtime.Run(ctx, &container.RunConfig{
 		Name:  containerName,
@@ -146,6 +245,8 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		Mounts: []container.Mount{
 			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
 		},
+		Init:  imgCfg.Init,
+		Flags: flags.ToArgs(mergedFlags),
 	})
 	if err != nil {
 		// Cleanup worktree on container failure
@@ -485,6 +586,12 @@ func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, er
 		return nil, shutdownErr
 	}
 
+	// Fetch image metadata to get runtime configuration from labels
+	imgCfg := m.getImageRuntimeConfig(ctx, image)
+
+	// Merge flags: config takes precedence over image labels
+	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+
 	// Create new container
 	containerName := m.containerName(entry.RepoID, entry.Branch)
 	c, err := m.runtime.Run(ctx, &container.RunConfig{
@@ -493,6 +600,8 @@ func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, er
 		Mounts: []container.Mount{
 			{Source: entry.Worktree, Target: "/workspace", ReadOnly: false},
 		},
+		Init:  imgCfg.Init,
+		Flags: flags.ToArgs(mergedFlags),
 	})
 	if err != nil {
 		entry.Status = catalog.StatusError

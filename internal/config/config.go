@@ -22,7 +22,8 @@ const (
 )
 
 // defaultBaseImage is the default container image (unexported).
-const defaultBaseImage = "ghcr.io/jmgilman/headjack:latest"
+// Available variants: :base (minimal), :systemd (+ init), :dind (+ Docker)
+const defaultBaseImage = "ghcr.io/jmgilman/headjack:base"
 
 // Sentinel errors for configuration operations.
 var (
@@ -87,9 +88,8 @@ type StorageConfig struct {
 
 // RuntimeConfig holds container runtime configuration.
 type RuntimeConfig struct {
-	Name       string   `mapstructure:"name" validate:"omitempty,oneof=podman apple"`
-	Privileged bool     `mapstructure:"privileged"`
-	Flags      []string `mapstructure:"flags"`
+	Name  string         `mapstructure:"name" validate:"omitempty,oneof=podman apple"`
+	Flags map[string]any `mapstructure:"flags"`
 }
 
 // Validate checks the configuration for errors using struct tags.
@@ -190,8 +190,7 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("agents.gemini.env", map[string]string{})
 	l.v.SetDefault("agents.codex.env", map[string]string{})
 	l.v.SetDefault("runtime.name", "podman")
-	l.v.SetDefault("runtime.privileged", false)
-	l.v.SetDefault("runtime.flags", []string{})
+	l.v.SetDefault("runtime.flags", map[string]any{})
 }
 
 // Load reads the configuration file, creating defaults if it doesn't exist.

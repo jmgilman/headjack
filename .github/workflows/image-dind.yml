@@ -1,0 +1,30 @@
+name: "Image: dind"
+
+on:
+  pull_request:
+    paths:
+      - 'images/dind/**'
+      - '.github/workflows/image-dind.yml'
+      - '.github/workflows/build-image.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'images/dind/**'
+      - '.github/workflows/image-dind.yml'
+      - '.github/workflows/build-image.yml'
+  release:
+    types: [published]
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-image.yml
+    with:
+      variant: dind
+      context: images/dind
+      base_variant: systemd
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write

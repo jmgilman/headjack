@@ -1,6 +1,9 @@
 # Headjack Base Image
 #
-# A complete development environment for CLI-based coding agents.
+# A minimal development environment for CLI-based coding agents.
+# This is the base variant with agent CLIs and language runtime managers.
+# For systemd support, use the systemd variant.
+# For Docker-in-Docker support, use the dind variant.
 # See docs/designs/base-image.md for full specification.
 
 ARG UBUNTU_VERSION=24.04
@@ -13,7 +16,6 @@ ARG TARGETARCH
 ARG YQ_VERSION=v4.50.1
 ARG NODE_VERSION=22.21.1
 ARG GH_CLI_VERSION=2.83.2
-ARG DOCKER_GPG_FINGERPRINT=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 ARG PYENV_VERSION=v2.6.17
 ARG NODENV_VERSION=v1.6.2
 ARG NODE_BUILD_VERSION=v5.4.22
@@ -23,8 +25,6 @@ ARG ZELLIJ_VERSION=0.43.1
 ARG CLAUDE_CODE_VERSION=2.0.76
 ARG GEMINI_CLI_VERSION=0.22.5
 ARG CODEX_CLI_VERSION=0.77.0
-ARG ENABLE_DOCKER_GROUP=1
-# Set ENABLE_DOCKER_GROUP=0 to avoid granting docker-group root-equivalent access.
 
 # Set locale and timezone
 ENV LANG=en_US.UTF-8
@@ -45,11 +45,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     locales \
     # Timezone
     tzdata \
-    # systemd (required for multi-service environments)
-    systemd \
-    systemd-sysv \
-    # iptables (required for Docker-in-Docker)
-    iptables \
     # SSL certificates
     ca-certificates \
     # Basic utilities needed for subsequent installations
@@ -62,14 +57,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 # Configure locale
 RUN locale-gen en_US.UTF-8
-
-# =============================================================================
-# iptables-legacy Workaround (ADR-002)
-# Required for Docker-in-Docker in Apple Containerization Framework
-# =============================================================================
-
-RUN update-alternatives --set iptables /usr/sbin/iptables-legacy && \
-    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 # =============================================================================
 # Common Tooling
@@ -165,28 +152,6 @@ RUN : "${TARGETARCH:?TARGETARCH is required for Zellij install}" && \
     rm -f "/tmp/${zellij_archive}" "/tmp/${zellij_checksums}" /tmp/zellij
 
 # =============================================================================
-# Docker CE
-# =============================================================================
-
-# hadolint ignore=DL3008
-RUN keyring=/usr/share/keyrings/docker-archive-keyring.gpg && \
-    tmpdir=$(mktemp -d) && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg && \
-    GNUPGHOME="${tmpdir}" gpg --batch --show-keys --with-colons /tmp/docker.gpg | \
-        awk -F: '/^fpr:/ {print $10; exit}' | grep -qx "${DOCKER_GPG_FINGERPRINT}" && \
-    gpg --dearmor -o "${keyring}" /tmp/docker.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    docker-ce \
-    docker-ce-cli \
-    containerd.io \
-    docker-buildx-plugin \
-    docker-compose-plugin \
-    && rm -rf /var/lib/apt/lists/* /tmp/docker.gpg "${tmpdir}"
-
-
-# =============================================================================
 # Node.js (required for Agent CLIs)
 # =============================================================================
 
@@ -256,9 +221,6 @@ RUN if getent passwd "$USER_UID" > /dev/null 2>&1; then \
         getent group "$USER_GID" > /dev/null 2>&1 || groupadd --gid "$USER_GID" "$USERNAME"; \
         # Create user
         useradd --uid "$USER_UID" --gid "$USER_GID" -m "$USERNAME"; \
-    fi; \
-    if [ "${ENABLE_DOCKER_GROUP}" = "1" ]; then \
-        usermod -aG docker "$USERNAME"; \
     fi
 
 # =============================================================================
@@ -321,31 +283,10 @@ RUN { \
     } >> ~/.bashrc
 
 # =============================================================================
-# systemd Configuration
+# Final Setup
 # =============================================================================
 
-# hadolint ignore=DL3002
-USER root
-
-# Clean up systemd services that don't make sense in a container,
-# then enable Docker (must be after cleanup to preserve the symlink)
-RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
-    /etc/systemd/system/*.wants/* \
-    /lib/systemd/system/local-fs.target.wants/* \
-    /lib/systemd/system/sockets.target.wants/*udev* \
-    /lib/systemd/system/sockets.target.wants/*initctl* \
-    /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
-    /lib/systemd/system/systemd-update-utmp* && \
-    systemctl enable docker
-
-# Use systemd as init
-STOPSIGNAL SIGRTMIN+3
-
-# Volume for cgroups (required for systemd)
-VOLUME ["/sys/fs/cgroup"]
-
-# Run as root (systemd requires root, and agents need full control)
 WORKDIR /home/$USERNAME
 
-# systemd as init system
-CMD ["/lib/systemd/systemd"]
+# Default shell
+CMD ["/bin/bash"]

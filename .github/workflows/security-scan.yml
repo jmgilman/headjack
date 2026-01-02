@@ -10,51 +10,57 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  scan-base-image:
+  scan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
       security-events: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [base, systemd, dind]
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Set image name
         id: image
-        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/base" >> $GITHUB_OUTPUT
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
 
       - name: Log in to Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Scan base image with Trivy
+      - name: Scan ${{ matrix.variant }} image with Trivy
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ matrix.variant }}
           format: table
           ignore-unfixed: true
           severity: CRITICAL,HIGH
           exit-code: 1
-          trivyignores: images/base/.trivyignore
+          trivyignores: images/${{ matrix.variant }}/.trivyignore
 
       - name: Upload Trivy scan results to GitHub Security tab
         if: always()
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ matrix.variant }}
           format: sarif
-          output: trivy-results.sarif
+          output: trivy-results-${{ matrix.variant }}.sarif
           ignore-unfixed: true
           severity: CRITICAL,HIGH,MEDIUM
-          trivyignores: images/base/.trivyignore
+          trivyignores: images/${{ matrix.variant }}/.trivyignore
 
       - name: Upload SARIF file
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: trivy-results-${{ matrix.variant }}.sarif
+          category: trivy-${{ matrix.variant }}

@@ -22,15 +22,18 @@ func TestNewAppleRuntime(t *testing.T) {
 func TestAppleRuntime_Run(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("creates container successfully", func(t *testing.T) {
+	t.Run("creates container successfully with default init command", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
-			RunFunc: func(ctx context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Equal(t, "container", opts.Name)
 				assert.Contains(t, opts.Args, "run")
 				assert.Contains(t, opts.Args, "--detach")
 				assert.Contains(t, opts.Args, "--name")
 				assert.Contains(t, opts.Args, "test-container")
 				assert.Contains(t, opts.Args, "ubuntu:24.04")
+				// Default init command should be "sleep infinity"
+				assert.Contains(t, opts.Args, "sleep")
+				assert.Contains(t, opts.Args, "infinity")
 
 				return &exec.Result{
 					Stdout:   []byte("abc123def456\n"),
@@ -52,6 +55,51 @@ func TestAppleRuntime_Run(t *testing.T) {
 		assert.Equal(t, StatusRunning, container.Status)
 	})
 
+	t.Run("uses custom init command when specified", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				// Custom init command should be at the end
+				assert.Contains(t, opts.Args, "/lib/systemd/systemd")
+
+				return &exec.Result{
+					Stdout:   []byte("abc123\n"),
+					ExitCode: 0,
+				}, nil
+			},
+		}
+
+		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		_, err := runtime.Run(ctx, &RunConfig{
+			Name:  "test",
+			Image: "ubuntu",
+			Init:  "/lib/systemd/systemd",
+		})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("includes image-specific flags from RunConfig", func(t *testing.T) {
+		mockExec := &mocks.ExecutorMock{
+			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
+				assert.Contains(t, opts.Args, "--custom-flag")
+
+				return &exec.Result{
+					Stdout:   []byte("abc123\n"),
+					ExitCode: 0,
+				}, nil
+			},
+		}
+
+		runtime := NewAppleRuntime(mockExec, AppleConfig{})
+		_, err := runtime.Run(ctx, &RunConfig{
+			Name:  "test",
+			Image: "ubuntu",
+			Flags: []string{"--custom-flag"},
+		})
+
+		require.NoError(t, err)
+	})
+
 	t.Run("includes privileged flag when configured", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
@@ -64,16 +112,17 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{Privileged: true})
+		runtime := NewAppleRuntime(mockExec, AppleConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
+			Flags: []string{"--privileged"},
 		})
 
 		require.NoError(t, err)
 	})
 
-	t.Run("includes custom flags from config", func(t *testing.T) {
+	t.Run("includes custom flags from RunConfig", func(t *testing.T) {
 		mockExec := &mocks.ExecutorMock{
 			RunFunc: func(_ context.Context, opts *exec.RunOptions) (*exec.Result, error) {
 				assert.Contains(t, opts.Args, "--memory=2g")
@@ -86,12 +135,11 @@ func TestAppleRuntime_Run(t *testing.T) {
 			},
 		}
 
-		runtime := NewAppleRuntime(mockExec, AppleConfig{
-			Flags: []string{"--memory=2g", "--cpus=2"},
-		})
+		runtime := NewAppleRuntime(mockExec, AppleConfig{})
 		_, err := runtime.Run(ctx, &RunConfig{
 			Name:  "test",
 			Image: "ubuntu",
+			Flags: []string{"--memory=2g", "--cpus=2"},
 		})
 
 		require.NoError(t, err)

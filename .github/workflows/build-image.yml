@@ -1,0 +1,120 @@
+name: Build Container Image
+
+on:
+  workflow_call:
+    inputs:
+      variant:
+        description: 'Image variant (base, systemd, dind)'
+        required: true
+        type: string
+      context:
+        description: 'Docker build context path'
+        required: true
+        type: string
+      base_variant:
+        description: 'Base image variant to build FROM (e.g., "base" for systemd, "systemd" for dind)'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      digest:
+        description: 'Image digest'
+        value: ${{ jobs.build.outputs.digest }}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: ${{ inputs.context }}/Dockerfile
+
+  build:
+    needs: lint
+    # Skip build for derivative images on PRs - base images aren't available in registry
+    if: github.event_name != 'pull_request' || inputs.base_variant == ''
+    runs-on: warp-ubuntu-latest-x64-4x
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set image name
+        id: image
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Configure WarpBuild Docker Builder
+        uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
+        with:
+          profile-name: default
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          tags: |
+            # Set variant tag for master branch
+            type=raw,value=${{ inputs.variant }},enable=${{ github.ref == 'refs/heads/master' }}
+            # Set version tag for releases (e.g., base-v0.1.0)
+            type=semver,pattern=${{ inputs.variant }}-{{version}},enable=${{ github.event_name == 'release' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: ${{ inputs.context }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ${{ inputs.base_variant != '' && format('BASE_IMAGE={0}/{1}:{2}', env.REGISTRY, steps.image.outputs.name, inputs.base_variant) || '' }}
+
+      - name: Generate SBOM with Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-${{ inputs.variant }}.spdx.json
+          artifact-name: ${{ inputs.variant }}-image.spdx.json
+          upload-release-assets: true
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
+
+      - name: Sign image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+
+      - name: Attest SBOM with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_YES: "true"
+        run: cosign attest --predicate sbom-${{ inputs.variant }}.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}

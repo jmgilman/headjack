@@ -17,8 +17,8 @@ import (
 
 // AppleConfig holds Apple Containerization-specific runtime configuration.
 type AppleConfig struct {
-	Privileged bool     // Run containers in privileged mode
-	Flags      []string // Custom flags passed to container run
+	// Currently empty - all flags go through RunConfig.Flags after merging
+	// at the manager level. Kept for future runtime-specific settings.
 }
 
 type appleRuntime struct {
@@ -45,12 +45,8 @@ func containerError(operation string, result *exec.Result, err error) error {
 func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
 	args := []string{"run", "--detach", "--name", cfg.Name}
 
-	if r.config.Privileged {
-		args = append(args, "--privileged")
-	}
-
-	// Add custom flags from config
-	args = append(args, r.config.Flags...)
+	// Add merged flags (image labels + config, merged by manager)
+	args = append(args, cfg.Flags...)
 
 	for _, m := range cfg.Mounts {
 		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
@@ -65,6 +61,13 @@ func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, err
 	}
 
 	args = append(args, cfg.Image)
+
+	// Add init command (default to "sleep infinity" if not specified)
+	initCmd := cfg.Init
+	if initCmd == "" {
+		initCmd = "sleep infinity"
+	}
+	args = append(args, strings.Fields(initCmd)...)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "container",

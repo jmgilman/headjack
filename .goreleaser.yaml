@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+builds:
+  - id: darwin
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jmgilman/headjack/internal/version.Version={{.Version}}
+      - -X github.com/jmgilman/headjack/internal/version.Commit={{.Commit}}
+      - -X github.com/jmgilman/headjack/internal/version.Date={{.Date}}
+    binary: hjk
+
+  - id: linux
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jmgilman/headjack/internal/version.Version={{.Version}}
+      - -X github.com/jmgilman/headjack/internal/version.Commit={{.Commit}}
+      - -X github.com/jmgilman/headjack/internal/version.Date={{.Date}}
+    binary: hjk
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: jmgilman
+    name: headjack
+  name_template: "CLI {{ .Version }}"
+  draft: false
+  prerelease: auto

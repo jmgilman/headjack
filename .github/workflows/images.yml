@@ -13,8 +13,10 @@ on:
       - 'images/**'
       - 'docker-bake.hcl'
       - '.github/workflows/images.yml'
-  release:
-    types: [published]
+    tags:
+      - 'images/base/v*'
+      - 'images/systemd/v*'
+      - 'images/dind/v*'
 
 env:
   REGISTRY: ghcr.io
@@ -37,18 +39,49 @@ jobs:
         with:
           dockerfile: ${{ matrix.dockerfile }}
 
+  # Determine which images to build based on trigger
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      variants: ${{ steps.variants.outputs.variants }}
+      is_release: ${{ steps.variants.outputs.is_release }}
+      version: ${{ steps.variants.outputs.version }}
+    steps:
+      - name: Determine build variants
+        id: variants
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Extract variant and version from tag: images/base/v1.0.0 → base, v1.0.0
+            TAG="${GITHUB_REF_NAME}"
+            VARIANT=$(echo "$TAG" | cut -d'/' -f2)
+            VERSION=$(echo "$TAG" | cut -d'/' -f3)
+            echo "variants=[\"$VARIANT\"]" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Building $VARIANT with version $VERSION"
+          else
+            # Build all variants on push to master or PR
+            echo 'variants=["base", "systemd", "dind"]' >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "version=latest" >> $GITHUB_OUTPUT
+            echo "Building all variants with latest tag"
+          fi
+
   build:
-    needs: lint
+    needs: [lint, prepare]
     runs-on: warp-ubuntu-latest-x64-4x
     permissions:
       actions: read
       contents: write
       packages: write
       id-token: write
+    strategy:
+      matrix:
+        variant: ${{ fromJson(needs.prepare.outputs.variants) }}
     outputs:
-      base-digest: ${{ steps.digests.outputs.base }}
-      systemd-digest: ${{ steps.digests.outputs.systemd }}
-      dind-digest: ${{ steps.digests.outputs.dind }}
+      base-digest: ${{ steps.digest.outputs.base }}
+      systemd-digest: ${{ steps.digest.outputs.systemd }}
+      dind-digest: ${{ steps.digest.outputs.dind }}
 
     steps:
       - name: Checkout repository
@@ -71,41 +104,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine build tag
-        id: tag
-        run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build images with Bake
+      - name: Build image with Bake
         id: bake
         uses: docker/bake-action@4ba453fbc2db7735392b93edf935aaf9b1e8f747 # v6
         with:
           files: docker-bake.hcl
+          targets: ${{ matrix.variant }}
           push: ${{ github.event_name != 'pull_request' }}
-          # Multi-platform on push, single platform on PR (docker exporter doesn't support manifest lists)
           set: |
             *.platform=${{ github.event_name != 'pull_request' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
-            base.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:base
-            base.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:base-${{ steps.tag.outputs.tag }}
-            systemd.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:systemd
-            systemd.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:systemd-${{ steps.tag.outputs.tag }}
-            dind.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:dind
-            dind.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:dind-${{ steps.tag.outputs.tag }}
+            ${{ matrix.variant }}.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ matrix.variant }}
+            ${{ matrix.variant }}.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ matrix.variant }}-${{ needs.prepare.outputs.version }}
 
-      - name: Get image digests
+      - name: Extract digest
         if: github.event_name != 'pull_request'
-        id: digests
+        id: digest
         run: |
-          echo "base=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.base."containerimage.digest"')" >> $GITHUB_OUTPUT
-          echo "systemd=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.systemd."containerimage.digest"')" >> $GITHUB_OUTPUT
-          echo "dind=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.dind."containerimage.digest"')" >> $GITHUB_OUTPUT
+          DIGEST=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '."${{ matrix.variant }}"."containerimage.digest"')
+          echo "${{ matrix.variant }}=$DIGEST" >> $GITHUB_OUTPUT
 
   sign:
-    needs: build
+    needs: [prepare, build]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -113,13 +132,7 @@ jobs:
       id-token: write
     strategy:
       matrix:
-        include:
-          - variant: base
-            digest: ${{ needs.build.outputs.base-digest }}
-          - variant: systemd
-            digest: ${{ needs.build.outputs.systemd-digest }}
-          - variant: dind
-            digest: ${{ needs.build.outputs.dind-digest }}
+        variant: ${{ fromJson(needs.prepare.outputs.variants) }}
 
     steps:
       - name: Checkout repository
@@ -128,6 +141,16 @@ jobs:
       - name: Set image name
         id: image
         run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Get digest
+        id: digest
+        run: |
+          # Get the digest from the build job output
+          case "${{ matrix.variant }}" in
+            base) echo "value=${{ needs.build.outputs.base-digest }}" >> $GITHUB_OUTPUT ;;
+            systemd) echo "value=${{ needs.build.outputs.systemd-digest }}" >> $GITHUB_OUTPUT ;;
+            dind) echo "value=${{ needs.build.outputs.dind-digest }}" >> $GITHUB_OUTPUT ;;
+          esac
 
       - name: Log in to Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
@@ -139,11 +162,11 @@ jobs:
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
         with:
-          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.digest.outputs.value }}
           format: spdx-json
           output-file: sbom-${{ matrix.variant }}.spdx.json
           artifact-name: ${{ matrix.variant }}-image.spdx.json
-          upload-release-assets: true
+          upload-release-assets: false
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
@@ -151,9 +174,9 @@ jobs:
       - name: Sign image with Cosign
         env:
           COSIGN_YES: "true"
-        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}
+        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.digest.outputs.value }}
 
       - name: Attest SBOM with Cosign
         env:
           COSIGN_YES: "true"
-        run: cosign attest --predicate sbom-${{ matrix.variant }}.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}
+        run: cosign attest --predicate sbom-${{ matrix.variant }}.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.digest.outputs.value }}

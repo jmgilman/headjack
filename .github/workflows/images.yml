@@ -4,54 +4,155 @@ on:
   pull_request:
     paths:
       - 'images/**'
+      - 'docker-bake.hcl'
       - '.github/workflows/images.yml'
-      - '.github/workflows/build-image.yml'
   push:
     branches:
       - master
     paths:
       - 'images/**'
+      - 'docker-bake.hcl'
       - '.github/workflows/images.yml'
-      - '.github/workflows/build-image.yml'
   release:
     types: [published]
 
+env:
+  REGISTRY: ghcr.io
+
 jobs:
-  base:
-    uses: ./.github/workflows/build-image.yml
-    with:
-      variant: base
-      context: images/base
-    permissions:
-      actions: read
-      contents: write
-      packages: write
-      id-token: write
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dockerfile:
+          - images/base/Dockerfile
+          - images/systemd/Dockerfile
+          - images/dind/Dockerfile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-  systemd:
-    needs: base
-    if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/build-image.yml
-    with:
-      variant: systemd
-      context: images/systemd
-      base_variant: base
-    permissions:
-      actions: read
-      contents: write
-      packages: write
-      id-token: write
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
 
-  dind:
-    needs: systemd
-    if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/build-image.yml
-    with:
-      variant: dind
-      context: images/dind
-      base_variant: systemd
+  build:
+    needs: lint
+    runs-on: warp-ubuntu-latest-x64-4x
     permissions:
       actions: read
       contents: write
       packages: write
       id-token: write
+    outputs:
+      base-digest: ${{ steps.digests.outputs.base }}
+      systemd-digest: ${{ steps.digests.outputs.systemd }}
+      dind-digest: ${{ steps.digests.outputs.dind }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set image name
+        id: image
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Configure WarpBuild Docker Builder
+        uses: WarpBuilds/docker-configure@157b8a388c103b2261932b838d8ea60f6fa0a7df # v1
+        with:
+          profile-name: default
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine build tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build images with Bake
+        uses: docker/bake-action@4ba453fbc2db7735392b93edf935aaf9b1e8f747 # v6
+        with:
+          files: docker-bake.hcl
+          push: ${{ github.event_name != 'pull_request' }}
+          set: |
+            *.platform=linux/amd64,linux/arm64
+            base.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:base
+            base.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:base-${{ steps.tag.outputs.tag }}
+            systemd.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:systemd
+            systemd.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:systemd-${{ steps.tag.outputs.tag }}
+            dind.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:dind
+            dind.tags=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:dind-${{ steps.tag.outputs.tag }}
+
+      - name: Get image digests
+        if: github.event_name != 'pull_request'
+        id: digests
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ steps.image.outputs.name }}"
+          echo "base=$(docker buildx imagetools inspect ${IMAGE}:base --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
+          echo "systemd=$(docker buildx imagetools inspect ${IMAGE}:systemd --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
+          echo "dind=$(docker buildx imagetools inspect ${IMAGE}:dind --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
+
+  sign:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      id-token: write
+    strategy:
+      matrix:
+        include:
+          - variant: base
+            digest: ${{ needs.build.outputs.base-digest }}
+          - variant: systemd
+            digest: ${{ needs.build.outputs.systemd-digest }}
+          - variant: dind
+            digest: ${{ needs.build.outputs.dind-digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set image name
+        id: image
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/headjack" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.variant }}.spdx.json
+          artifact-name: ${{ matrix.variant }}-image.spdx.json
+          upload-release-assets: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
+
+      - name: Sign image with Cosign
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}
+
+      - name: Attest SBOM with Cosign
+        env:
+          COSIGN_YES: "true"
+        run: cosign attest --predicate sbom-${{ matrix.variant }}.spdx.json --type spdxjson ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ matrix.digest }}

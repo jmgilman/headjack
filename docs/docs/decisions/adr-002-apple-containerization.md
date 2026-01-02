@@ -1,3 +1,9 @@
+---
+sidebar_position: 2
+title: "ADR-002: Apple Containerization Framework"
+description: Decision to use Apple Containerization Framework for agent isolation
+---
+
 # ADR 002: Apple Containerization Framework for Agent Isolation
 
 ## Status

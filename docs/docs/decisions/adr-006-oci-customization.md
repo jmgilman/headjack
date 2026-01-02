@@ -1,3 +1,9 @@
+---
+sidebar_position: 6
+title: "ADR-006: OCI Images for Customization"
+description: Decision to use OCI images for environment customization
+---
+
 # ADR 006: OCI Images for Environment Customization
 
 ## Status
@@ -76,8 +82,3 @@ When a Dockerfile path is provided (detected by filename ending in `Dockerfile` 
 
 - Users who want Nix can install it in their custom Dockerfile — it's not blocked, just not first-class
 - The base image can include common tools, reducing the need for customization in typical cases
-
-## References
-
-- `docs/designs/cli-interface.md` — Documents the `--base` flag
-- `research/` — Contains Nix/devenv investigation notes

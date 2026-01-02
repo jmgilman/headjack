@@ -1,3 +1,9 @@
+---
+sidebar_position: 5
+title: "ADR-005: Defer GPG Commit Signing"
+description: Decision to defer GPG commit signing support
+---
+
 # ADR 005: Defer GPG Commit Signing Support
 
 ## Status
@@ -62,7 +68,3 @@ Create a temporary signing subkey for each container instance, export only the s
 - GPG support can be added in a future version if demand materializes
 - The TCP bridge approach is documented and validated for future implementation
 - Users can manually configure signing if they're willing to set up the bridge themselves
-
-## References
-
-- `research/gpg-agent-forwarding.md` - Detailed research and validation results

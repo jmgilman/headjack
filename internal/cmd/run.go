@@ -278,9 +278,7 @@ func buildAgentCommand(agent string, args []string) []string {
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.Flags().String("agent", "", "start the specified agent instead of a shell")
-	// Set NoOptDefVal so --agent without a value uses "default" as sentinel
-	runCmd.Flags().Lookup("agent").NoOptDefVal = agentDefaultSentinel
+	runCmd.Flags().String("agent", "", "start an agent (claude, gemini, codex, or 'default' for configured default)")
 	runCmd.Flags().String("name", "", "override auto-generated session name")
 	runCmd.Flags().String("base", "", "override the default base image")
 	runCmd.Flags().BoolP("detached", "d", false, "create session but don't attach (run in background)")

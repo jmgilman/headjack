@@ -20,11 +20,6 @@ variable "TAG" {
   default = "latest"
 }
 
-# Set to true to push images to registry
-variable "PUSH" {
-  default = false
-}
-
 # Target group to build all images
 group "default" {
   targets = ["base", "systemd", "dind"]
@@ -35,7 +30,6 @@ target "base" {
   dockerfile = "Dockerfile"
   tags       = ["${REGISTRY}/${REPOSITORY}:base", "${REGISTRY}/${REPOSITORY}:base-${TAG}"]
   platforms  = ["linux/amd64", "linux/arm64"]
-  output     = [PUSH ? "type=registry" : "type=docker"]
 }
 
 target "systemd" {
@@ -43,7 +37,6 @@ target "systemd" {
   dockerfile = "Dockerfile"
   tags       = ["${REGISTRY}/${REPOSITORY}:systemd", "${REGISTRY}/${REPOSITORY}:systemd-${TAG}"]
   platforms  = ["linux/amd64", "linux/arm64"]
-  output     = [PUSH ? "type=registry" : "type=docker"]
   contexts = {
     base = "target:base"
   }
@@ -54,7 +47,6 @@ target "dind" {
   dockerfile = "Dockerfile"
   tags       = ["${REGISTRY}/${REPOSITORY}:dind", "${REGISTRY}/${REPOSITORY}:dind-${TAG}"]
   platforms  = ["linux/amd64", "linux/arm64"]
-  output     = [PUSH ? "type=registry" : "type=docker"]
   contexts = {
     systemd = "target:systemd"
   }

@@ -130,22 +130,32 @@ func buildSessionConfig(cmd *cobra.Command, flags *runFlags, args []string) (*in
 
 // injectAuthToken retrieves the auth token for the agent and adds it to the session config.
 func injectAuthToken(agent string, cfg *instance.CreateSessionConfig) error {
-	if agent != "claude" {
-		return nil
-	}
-
 	storage := keychain.New()
-	provider := auth.NewClaudeProvider()
 
-	token, err := provider.Get(storage)
-	if err != nil {
-		if errors.Is(err, keychain.ErrNotFound) {
-			return errors.New("claude auth not configured: run 'headjack auth claude' first")
+	switch agent {
+	case "claude":
+		provider := auth.NewClaudeProvider()
+		token, err := provider.Get(storage)
+		if err != nil {
+			if errors.Is(err, keychain.ErrNotFound) {
+				return errors.New("claude auth not configured: run 'headjack auth claude' first")
+			}
+			return fmt.Errorf("get claude token: %w", err)
 		}
-		return fmt.Errorf("get claude token: %w", err)
+		cfg.Env = append(cfg.Env, "CLAUDE_CODE_OAUTH_TOKEN="+token)
+
+	case "gemini":
+		provider := auth.NewGeminiProvider()
+		creds, err := provider.Get(storage)
+		if err != nil {
+			if errors.Is(err, keychain.ErrNotFound) {
+				return errors.New("gemini auth not configured: run 'headjack auth gemini' first")
+			}
+			return fmt.Errorf("get gemini credentials: %w", err)
+		}
+		cfg.Env = append(cfg.Env, "GEMINI_OAUTH_CREDS="+creds)
 	}
 
-	cfg.Env = append(cfg.Env, "CLAUDE_CODE_OAUTH_TOKEN="+token)
 	return nil
 }
 

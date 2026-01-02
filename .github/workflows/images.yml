@@ -81,6 +81,7 @@ jobs:
           fi
 
       - name: Build images with Bake
+        id: bake
         uses: docker/bake-action@4ba453fbc2db7735392b93edf935aaf9b1e8f747 # v6
         with:
           files: docker-bake.hcl
@@ -99,10 +100,9 @@ jobs:
         if: github.event_name != 'pull_request'
         id: digests
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.image.outputs.name }}"
-          echo "base=$(docker buildx imagetools inspect ${IMAGE}:base --format '{{.Digest}}')" >> $GITHUB_OUTPUT
-          echo "systemd=$(docker buildx imagetools inspect ${IMAGE}:systemd --format '{{.Digest}}')" >> $GITHUB_OUTPUT
-          echo "dind=$(docker buildx imagetools inspect ${IMAGE}:dind --format '{{.Digest}}')" >> $GITHUB_OUTPUT
+          echo "base=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.base."containerimage.digest"')" >> $GITHUB_OUTPUT
+          echo "systemd=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.systemd."containerimage.digest"')" >> $GITHUB_OUTPUT
+          echo "dind=$(echo '${{ steps.bake.outputs.metadata }}' | jq -r '.dind."containerimage.digest"')" >> $GITHUB_OUTPUT
 
   sign:
     needs: build

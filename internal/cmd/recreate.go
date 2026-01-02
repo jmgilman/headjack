@@ -38,15 +38,11 @@ The worktree (and all git-tracked and untracked files) is preserved.`,
 
 		// Determine image to use (precedence: flag > config)
 		// Config already has defaults set via Viper, so just use it
-		image, err := cmd.Flags().GetString("base")
+		imageOverride, err := cmd.Flags().GetString("base")
 		if err != nil {
 			return fmt.Errorf("get base flag: %w", err)
 		}
-		if image == "" {
-			if cfg := ConfigFromContext(cmd.Context()); cfg != nil {
-				image = cfg.Default.BaseImage
-			}
-		}
+		image := resolveBaseImage(cmd.Context(), imageOverride)
 
 		// Recreate the instance
 		newInst, err := mgr.Recreate(cmd.Context(), inst.ID, image)

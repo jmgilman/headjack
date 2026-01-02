@@ -21,7 +21,7 @@ func TestLoader_Load_CreatesDefaultIfMissing(t *testing.T) {
 
 	// Check defaults
 	assert.Empty(t, cfg.Default.Agent)
-	assert.Equal(t, defaultBaseImage, cfg.Default.BaseImage)
+	assert.Equal(t, DefaultBaseImage, cfg.Default.BaseImage)
 	assert.Contains(t, cfg.Storage.Worktrees, "headjack")
 	assert.Contains(t, cfg.Storage.Catalog, "catalog.json")
 	assert.Contains(t, cfg.Storage.Logs, "logs")
@@ -117,7 +117,7 @@ func TestLoader_Get(t *testing.T) {
 	t.Run("valid key returns value", func(t *testing.T) {
 		val, err := loader.Get("default.base_image")
 		require.NoError(t, err)
-		assert.Equal(t, defaultBaseImage, val)
+		assert.Equal(t, DefaultBaseImage, val)
 	})
 
 	t.Run("invalid key returns error", func(t *testing.T) {

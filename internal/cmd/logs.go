@@ -132,9 +132,9 @@ func getLogsDir(ctx context.Context) (string, error) {
 	}
 
 	// Fallback to default
-	home, err := os.UserHomeDir()
+	dataDir, err := defaultDataDir()
 	if err != nil {
-		return "", fmt.Errorf("get home directory: %w", err)
+		return "", err
 	}
-	return filepath.Join(home, ".local", "share", "headjack", "logs"), nil
+	return filepath.Join(dataDir, "logs"), nil
 }

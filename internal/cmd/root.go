@@ -150,13 +150,13 @@ func initManager(muxOverride string) error {
 		logsDir = appConfig.Storage.Logs
 	} else {
 		// Fallback to defaults
-		home, err := os.UserHomeDir()
+		dataDir, err := defaultDataDir()
 		if err != nil {
-			return fmt.Errorf("get home directory: %w", err)
+			return err
 		}
-		worktreesDir = filepath.Join(home, ".local", "share", "headjack", "git")
-		catalogPath = filepath.Join(home, ".local", "share", "headjack", "catalog.json")
-		logsDir = filepath.Join(home, ".local", "share", "headjack", "logs")
+		worktreesDir = filepath.Join(dataDir, "git")
+		catalogPath = filepath.Join(dataDir, "catalog.json")
+		logsDir = filepath.Join(dataDir, "logs")
 	}
 
 	executor := hjexec.New()

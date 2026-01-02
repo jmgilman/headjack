@@ -21,9 +21,9 @@ const (
 	DefaultDataDir    = ".local/share/headjack"
 )
 
-// defaultBaseImage is the default container image (unexported).
+// DefaultBaseImage is the default container image.
 // Available variants: :base (minimal), :systemd (+ init), :dind (+ Docker)
-const defaultBaseImage = "ghcr.io/jmgilman/headjack:base"
+const DefaultBaseImage = "ghcr.io/jmgilman/headjack:base"
 
 // Sentinel errors for configuration operations.
 var (
@@ -181,7 +181,7 @@ func NewLoader() (*Loader, error) {
 // setDefaults sets all default configuration values using Viper.
 func (l *Loader) setDefaults() {
 	l.v.SetDefault("default.agent", "")
-	l.v.SetDefault("default.base_image", defaultBaseImage)
+	l.v.SetDefault("default.base_image", DefaultBaseImage)
 	l.v.SetDefault("default.multiplexer", "tmux")
 	l.v.SetDefault("storage.worktrees", "~/.local/share/headjack/git")
 	l.v.SetDefault("storage.catalog", "~/.local/share/headjack/catalog.json")

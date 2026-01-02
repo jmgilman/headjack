@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/instance"
 )
 
@@ -23,6 +25,24 @@ func repoPath() (string, error) {
 		return "", fmt.Errorf("get working directory: %w", err)
 	}
 	return path, nil
+}
+
+func defaultDataDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home directory: %w", err)
+	}
+	return filepath.Join(home, config.DefaultDataDir), nil
+}
+
+func resolveBaseImage(ctx context.Context, override string) string {
+	if override != "" {
+		return override
+	}
+	if cfg := ConfigFromContext(ctx); cfg != nil && cfg.Default.BaseImage != "" {
+		return cfg.Default.BaseImage
+	}
+	return config.DefaultBaseImage
 }
 
 func getInstanceByBranch(ctx context.Context, mgr *instance.Manager, branch, notFoundMsg string) (*instance.Instance, error) {

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jmgilman/headjack/internal/auth"
+	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/keychain"
 )
@@ -78,12 +79,7 @@ func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
 		return nil, fmt.Errorf("get detached flag: %w", err)
 	}
 
-	// Use default image from config if not specified
-	if image == "" {
-		if cfg := ConfigFromContext(cmd.Context()); cfg != nil {
-			image = cfg.Default.BaseImage
-		}
-	}
+	image = resolveBaseImage(cmd.Context(), image)
 
 	return &runFlags{
 		image:       image,
@@ -129,44 +125,50 @@ func buildSessionConfig(cmd *cobra.Command, flags *runFlags, args []string) (*in
 
 // injectAuthToken retrieves the auth token for the agent and adds it to the session config.
 func injectAuthToken(agent string, cfg *instance.CreateSessionConfig) error {
-	storage := keychain.New()
-
-	switch agent {
-	case "claude":
-		provider := auth.NewClaudeProvider()
-		token, err := provider.Get(storage)
-		if err != nil {
-			if errors.Is(err, keychain.ErrNotFound) {
-				return errors.New("claude auth not configured: run 'headjack auth claude' first")
-			}
-			return fmt.Errorf("get claude token: %w", err)
-		}
-		cfg.Env = append(cfg.Env, "CLAUDE_CODE_OAUTH_TOKEN="+token)
-
-	case "gemini":
-		provider := auth.NewGeminiProvider()
-		creds, err := provider.Get(storage)
-		if err != nil {
-			if errors.Is(err, keychain.ErrNotFound) {
-				return errors.New("gemini auth not configured: run 'headjack auth gemini' first")
-			}
-			return fmt.Errorf("get gemini credentials: %w", err)
-		}
-		cfg.Env = append(cfg.Env, "GEMINI_OAUTH_CREDS="+creds)
-
-	case "codex":
-		provider := auth.NewCodexProvider()
-		creds, err := provider.Get(storage)
-		if err != nil {
-			if errors.Is(err, keychain.ErrNotFound) {
-				return errors.New("codex auth not configured: run 'headjack auth codex' first")
-			}
-			return fmt.Errorf("get codex credentials: %w", err)
-		}
-		cfg.Env = append(cfg.Env, "CODEX_AUTH_JSON="+creds)
+	spec, ok := agentAuthSpecs[agent]
+	if !ok {
+		return nil
 	}
 
+	storage := keychain.New()
+	credential, err := spec.provider().Get(storage)
+	if err != nil {
+		if errors.Is(err, keychain.ErrNotFound) {
+			return errors.New(spec.notConfigured)
+		}
+		return fmt.Errorf("%s: %w", spec.errPrefix, err)
+	}
+
+	cfg.Env = append(cfg.Env, spec.envVar+"="+credential)
 	return nil
+}
+
+type agentAuthSpec struct {
+	provider      func() auth.Provider
+	envVar        string
+	notConfigured string
+	errPrefix     string
+}
+
+var agentAuthSpecs = map[string]agentAuthSpec{
+	"claude": {
+		provider:      auth.NewClaudeProvider,
+		envVar:        "CLAUDE_CODE_OAUTH_TOKEN",
+		notConfigured: "claude auth not configured: run 'headjack auth claude' first",
+		errPrefix:     "get claude token",
+	},
+	"gemini": {
+		provider:      auth.NewGeminiProvider,
+		envVar:        "GEMINI_OAUTH_CREDS",
+		notConfigured: "gemini auth not configured: run 'headjack auth gemini' first",
+		errPrefix:     "get gemini credentials",
+	},
+	"codex": {
+		provider:      auth.NewCodexProvider,
+		envVar:        "CODEX_AUTH_JSON",
+		notConfigured: "codex auth not configured: run 'headjack auth codex' first",
+		errPrefix:     "get codex credentials",
+	},
 }
 
 func runRunCmd(cmd *cobra.Command, args []string) error {
@@ -261,9 +263,8 @@ func resolveAgent(cmd *cobra.Command, agent string) (string, error) {
 	}
 
 	// Validate agent name
-	cfg := ConfigFromContext(cmd.Context())
-	if cfg == nil || !cfg.IsValidAgent(agent) {
-		return "", fmt.Errorf("invalid agent %q (valid: claude, gemini, codex)", agent)
+	if !config.IsValidAgent(agent) {
+		return "", fmt.Errorf("invalid agent %q (valid: %s)", agent, formatList(config.ValidAgentNames()))
 	}
 
 	return agent, nil
@@ -285,4 +286,9 @@ func init() {
 	runCmd.Flags().String("name", "", "override auto-generated session name")
 	runCmd.Flags().String("base", "", "override the default base image")
 	runCmd.Flags().BoolP("detached", "d", false, "create session but don't attach (run in background)")
+
+	agentFlag := runCmd.Flags().Lookup("agent")
+	if agentFlag != nil {
+		agentFlag.NoOptDefVal = agentDefaultSentinel
+	}
 }

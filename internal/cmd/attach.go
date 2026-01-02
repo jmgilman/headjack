@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -39,7 +38,10 @@ session continues running.`,
 }
 
 func runAttachCmd(cmd *cobra.Command, args []string) error {
-	mgr := ManagerFromContext(cmd.Context())
+	mgr, err := requireManager(cmd.Context())
+	if err != nil {
+		return err
+	}
 
 	switch len(args) {
 	case 0:
@@ -66,17 +68,9 @@ func attachGlobalMRU(cmd *cobra.Command, mgr *instance.Manager) error {
 
 // attachInstanceMRU attaches to the most recently accessed session for a specific instance.
 func attachInstanceMRU(cmd *cobra.Command, mgr *instance.Manager, branch string) error {
-	repoPath, err := os.Getwd()
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q (use 'hjk run' to create one)")
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
-	}
-
-	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
-	if err != nil {
-		if errors.Is(err, instance.ErrNotFound) {
-			return fmt.Errorf("no instance found for branch %q (use 'hjk run' to create one)", branch)
-		}
-		return fmt.Errorf("get instance: %w", err)
+		return err
 	}
 
 	session, err := mgr.GetMRUSession(cmd.Context(), inst.ID)
@@ -92,17 +86,9 @@ func attachInstanceMRU(cmd *cobra.Command, mgr *instance.Manager, branch string)
 
 // attachExplicitSession attaches to a specific session by name.
 func attachExplicitSession(cmd *cobra.Command, mgr *instance.Manager, branch, sessionName string) error {
-	repoPath, err := os.Getwd()
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q (use 'hjk run' to create one)")
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
-	}
-
-	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
-	if err != nil {
-		if errors.Is(err, instance.ErrNotFound) {
-			return fmt.Errorf("no instance found for branch %q (use 'hjk run' to create one)", branch)
-		}
-		return fmt.Errorf("get instance: %w", err)
+		return err
 	}
 
 	// Verify session exists

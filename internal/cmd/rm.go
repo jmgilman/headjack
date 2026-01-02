@@ -2,14 +2,11 @@ package cmd
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var rmCmd = &cobra.Command{
@@ -37,20 +34,14 @@ WARNING: This deletes uncommitted work in the worktree.`,
 			return fmt.Errorf("get force flag: %w", err)
 		}
 
-		// Get current working directory as repo path
-		repoPath, err := os.Getwd()
+		mgr, err := requireManager(cmd.Context())
 		if err != nil {
-			return fmt.Errorf("get working directory: %w", err)
+			return err
 		}
 
-		// Get instance by branch
-		mgr := ManagerFromContext(cmd.Context())
-		inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
+		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q")
 		if err != nil {
-			if errors.Is(err, instance.ErrNotFound) {
-				return fmt.Errorf("no instance found for branch %q", branch)
-			}
-			return fmt.Errorf("get instance: %w", err)
+			return err
 		}
 
 		// Confirm removal unless --force

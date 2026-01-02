@@ -52,17 +52,22 @@ func listInstances(cmd *cobra.Command) error {
 		return fmt.Errorf("get all flag: %w", err)
 	}
 
+	mgr, err := requireManager(cmd.Context())
+	if err != nil {
+		return err
+	}
+
 	filter := instance.ListFilter{}
 
 	// If not showing all, filter by current repo
 	if !all {
-		repoPath, wdErr := os.Getwd()
-		if wdErr != nil {
-			return fmt.Errorf("get working directory: %w", wdErr)
+		repoPathValue, pathErr := repoPath()
+		if pathErr != nil {
+			return pathErr
 		}
 
 		opener := git.NewOpener(exec.New())
-		repo, openErr := opener.Open(cmd.Context(), repoPath)
+		repo, openErr := opener.Open(cmd.Context(), repoPathValue)
 		if openErr != nil {
 			return fmt.Errorf("open repository: %w", openErr)
 		}
@@ -70,7 +75,6 @@ func listInstances(cmd *cobra.Command) error {
 		filter.RepoID = repo.Identifier()
 	}
 
-	mgr := ManagerFromContext(cmd.Context())
 	instances, err := mgr.List(cmd.Context(), filter)
 	if err != nil {
 		return fmt.Errorf("list instances: %w", err)
@@ -113,15 +117,14 @@ func listInstances(cmd *cobra.Command) error {
 }
 
 func listSessions(cmd *cobra.Command, branch string) error {
-	repoPath, err := os.Getwd()
+	mgr, err := requireManager(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return err
 	}
 
-	mgr := ManagerFromContext(cmd.Context())
-	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "")
 	if err != nil {
-		return fmt.Errorf("get instance: %w", err)
+		return err
 	}
 
 	sessions, err := mgr.ListSessions(cmd.Context(), inst.ID)

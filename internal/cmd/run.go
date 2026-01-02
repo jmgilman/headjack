@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -173,9 +172,9 @@ func injectAuthToken(agent string, cfg *instance.CreateSessionConfig) error {
 func runRunCmd(cmd *cobra.Command, args []string) error {
 	branch := args[0]
 
-	repoPath, err := os.Getwd()
+	mgr, err := requireManager(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return err
 	}
 
 	flags, err := parseRunFlags(cmd)
@@ -183,7 +182,11 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mgr := ManagerFromContext(cmd.Context())
+	repoPath, err := repoPath()
+	if err != nil {
+		return err
+	}
+
 	inst, err := getOrCreateInstance(cmd, mgr, repoPath, branch, flags.image)
 	if err != nil {
 		return err

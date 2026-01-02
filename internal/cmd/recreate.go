@@ -1,13 +1,9 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/jmgilman/headjack/internal/instance"
 )
 
 var recreateCmd = &cobra.Command{
@@ -30,20 +26,14 @@ The worktree (and all git-tracked and untracked files) is preserved.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch := args[0]
 
-		// Get current working directory as repo path
-		repoPath, err := os.Getwd()
+		mgr, err := requireManager(cmd.Context())
 		if err != nil {
-			return fmt.Errorf("get working directory: %w", err)
+			return err
 		}
 
-		// Get instance by branch
-		mgr := ManagerFromContext(cmd.Context())
-		inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
+		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q")
 		if err != nil {
-			if errors.Is(err, instance.ErrNotFound) {
-				return fmt.Errorf("no instance found for branch %q", branch)
-			}
-			return fmt.Errorf("get instance: %w", err)
+			return err
 		}
 
 		// Determine image to use (precedence: flag > config)

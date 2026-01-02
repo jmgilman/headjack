@@ -57,15 +57,14 @@ func runLogsCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get the instance for this branch
-	repoPath, err := os.Getwd()
+	mgr, err := requireManager(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return err
 	}
 
-	mgr := ManagerFromContext(cmd.Context())
-	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "")
 	if err != nil {
-		return fmt.Errorf("get instance: %w", err)
+		return err
 	}
 
 	// Get the session to verify it exists and get its ID

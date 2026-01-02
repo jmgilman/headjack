@@ -100,9 +100,9 @@ jobs:
         id: digests
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ steps.image.outputs.name }}"
-          echo "base=$(docker buildx imagetools inspect ${IMAGE}:base --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
-          echo "systemd=$(docker buildx imagetools inspect ${IMAGE}:systemd --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
-          echo "dind=$(docker buildx imagetools inspect ${IMAGE}:dind --format '{{.Manifest.Digest}}')" >> $GITHUB_OUTPUT
+          echo "base=$(docker buildx imagetools inspect ${IMAGE}:base --format '{{.Digest}}')" >> $GITHUB_OUTPUT
+          echo "systemd=$(docker buildx imagetools inspect ${IMAGE}:systemd --format '{{.Digest}}')" >> $GITHUB_OUTPUT
+          echo "dind=$(docker buildx imagetools inspect ${IMAGE}:dind --format '{{.Digest}}')" >> $GITHUB_OUTPUT
 
   sign:
     needs: build

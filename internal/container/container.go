@@ -13,6 +13,7 @@ var (
 	ErrNotRunning    = errors.New("container not running")
 	ErrAlreadyExists = errors.New("container already exists")
 	ErrBuildFailed   = errors.New("image build failed")
+	ErrNoParser      = errors.New("runtime has no parser configured")
 )
 
 // Status represents the container state.

@@ -154,6 +154,17 @@ func injectAuthToken(agent string, cfg *instance.CreateSessionConfig) error {
 			return fmt.Errorf("get gemini credentials: %w", err)
 		}
 		cfg.Env = append(cfg.Env, "GEMINI_OAUTH_CREDS="+creds)
+
+	case "codex":
+		provider := auth.NewCodexProvider()
+		creds, err := provider.Get(storage)
+		if err != nil {
+			if errors.Is(err, keychain.ErrNotFound) {
+				return errors.New("codex auth not configured: run 'headjack auth codex' first")
+			}
+			return fmt.Errorf("get codex credentials: %w", err)
+		}
+		cfg.Env = append(cfg.Env, "CODEX_AUTH_JSON="+creds)
 	}
 
 	return nil

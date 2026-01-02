@@ -896,6 +896,15 @@ echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/setti
 			Env:     env,
 		})
 
+	case catalog.SessionTypeCodex:
+		// Write Codex auth.json from env var.
+		// CODEX_AUTH_JSON contains the contents of ~/.codex/auth.json.
+		setupCmd := `mkdir -p ~/.codex && echo "$CODEX_AUTH_JSON" > ~/.codex/auth.json`
+		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+			Command: []string{"sh", "-c", setupCmd},
+			Env:     env,
+		})
+
 	default:
 		return nil
 	}

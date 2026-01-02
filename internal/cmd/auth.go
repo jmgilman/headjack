@@ -52,10 +52,28 @@ The stored credentials use your Google AI Pro/Ultra subscription rather than API
 	RunE: runAuthGemini,
 }
 
+var authCodexCmd = &cobra.Command{
+	Use:   "codex",
+	Short: "Configure OpenAI Codex CLI authentication",
+	Long: `Configure OpenAI Codex CLI authentication for use in Headjack containers.
+
+This command runs the Codex login flow which:
+1. Opens a browser to localhost:1455 for ChatGPT OAuth
+2. Prompts you to log in with your ChatGPT account
+3. Creates auth.json at ~/.codex/auth.json
+4. Stores the auth.json contents securely in macOS Keychain
+
+The stored credentials use your ChatGPT Plus/Pro/Team/Enterprise subscription rather than API billing.`,
+	Example: `  # Set up Codex CLI authentication
+  headjack auth codex`,
+	RunE: runAuthCodex,
+}
+
 func init() {
 	rootCmd.AddCommand(authCmd)
 	authCmd.AddCommand(authClaudeCmd)
 	authCmd.AddCommand(authGeminiCmd)
+	authCmd.AddCommand(authCodexCmd)
 }
 
 func runAuthClaude(cmd *cobra.Command, _ []string) error {
@@ -85,5 +103,21 @@ func runAuthGemini(cmd *cobra.Command, _ []string) error {
 	}
 
 	fmt.Println("Credentials stored in macOS Keychain.")
+	return nil
+}
+
+func runAuthCodex(cmd *cobra.Command, _ []string) error {
+	fmt.Println("Starting Codex authentication flow...")
+	fmt.Println()
+
+	provider := auth.NewCodexProvider()
+	storage := keychain.New()
+
+	if err := provider.Authenticate(cmd.Context(), storage); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Authentication successful! Credentials stored in macOS Keychain.")
 	return nil
 }

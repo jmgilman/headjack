@@ -4,9 +4,8 @@
 # Use this when your workflows require Docker commands inside the container.
 # See docs/designs/base-image.md for full specification.
 
-ARG BASE_IMAGE=ghcr.io/jmgilman/headjack:systemd
 # hadolint ignore=DL3006
-FROM ${BASE_IMAGE}
+FROM systemd
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

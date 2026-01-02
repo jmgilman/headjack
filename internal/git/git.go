@@ -4,6 +4,10 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jmgilman/headjack/internal/exec"
 )
 
 // Sentinel errors for git operations.
@@ -14,6 +18,17 @@ var (
 	ErrWorktreeExists   = errors.New("worktree already exists")
 	ErrWorktreeNotFound = errors.New("worktree not found")
 )
+
+// gitError formats an error from a git command, including stderr if available.
+func gitError(operation string, result *exec.Result, err error) error {
+	if result != nil {
+		stderr := strings.TrimSpace(string(result.Stderr))
+		if stderr != "" {
+			return fmt.Errorf("%s: %s", operation, stderr)
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
 
 // Worktree represents a git worktree.
 type Worktree struct {

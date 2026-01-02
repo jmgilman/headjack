@@ -210,19 +210,16 @@ func TestConfig_Validate(t *testing.T) {
 	})
 }
 
-func TestConfig_IsValidAgent(t *testing.T) {
-	cfg := &Config{}
-
-	assert.True(t, cfg.IsValidAgent("claude"))
-	assert.True(t, cfg.IsValidAgent("gemini"))
-	assert.True(t, cfg.IsValidAgent("codex"))
-	assert.False(t, cfg.IsValidAgent("invalid"))
-	assert.False(t, cfg.IsValidAgent(""))
+func TestIsValidAgent(t *testing.T) {
+	assert.True(t, IsValidAgent("claude"))
+	assert.True(t, IsValidAgent("gemini"))
+	assert.True(t, IsValidAgent("codex"))
+	assert.False(t, IsValidAgent("invalid"))
+	assert.False(t, IsValidAgent(""))
 }
 
-func TestConfig_ValidAgentNames(t *testing.T) {
-	cfg := &Config{}
-	names := cfg.ValidAgentNames()
+func TestValidAgentNames(t *testing.T) {
+	names := ValidAgentNames()
 
 	assert.Contains(t, names, "claude")
 	assert.Contains(t, names, "gemini")

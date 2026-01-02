@@ -9,17 +9,6 @@ import (
 	"github.com/jmgilman/headjack/internal/exec"
 )
 
-// gitError formats an error from a git command, including stderr if available.
-func gitError(operation string, result *exec.Result, err error) error {
-	if result != nil {
-		stderr := strings.TrimSpace(string(result.Stderr))
-		if stderr != "" {
-			return fmt.Errorf("%s: %s", operation, stderr)
-		}
-	}
-	return fmt.Errorf("%s: %w", operation, err)
-}
-
 type repository struct {
 	root       string
 	identifier string

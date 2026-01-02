@@ -4,13 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/term"
 
 	"github.com/jmgilman/headjack/internal/exec"
 )
@@ -22,63 +17,35 @@ type PodmanConfig struct {
 }
 
 type podmanRuntime struct {
-	exec   exec.Executor
+	baseRuntime
 	config PodmanConfig
 }
 
 // NewPodmanRuntime creates a Runtime using Podman CLI.
 func NewPodmanRuntime(e exec.Executor, cfg PodmanConfig) Runtime {
-	return &podmanRuntime{exec: e, config: cfg}
-}
-
-// podmanError formats an error from the podman CLI, including stderr if available.
-func podmanError(operation string, result *exec.Result, err error) error {
-	if result != nil {
-		stderr := strings.TrimSpace(string(result.Stderr))
-		if stderr != "" {
-			return fmt.Errorf("%s: %s", operation, stderr)
-		}
+	return &podmanRuntime{
+		baseRuntime: baseRuntime{
+			exec:        e,
+			binaryName:  "podman",
+			execCommand: []string{"podman", "exec"},
+		},
+		config: cfg,
 	}
-	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func (r *podmanRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
-	args := []string{"run", "--detach", "--name", cfg.Name}
-
-	// Add merged flags (image labels + config, merged by manager)
-	args = append(args, cfg.Flags...)
-
-	for _, m := range cfg.Mounts {
-		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
-		if m.ReadOnly {
-			mountSpec += ":ro"
-		}
-		args = append(args, "-v", mountSpec)
-	}
-
-	for _, e := range cfg.Env {
-		args = append(args, "-e", e)
-	}
-
-	args = append(args, cfg.Image)
-
-	// Add init command (default to "sleep infinity" if not specified)
-	initCmd := cfg.Init
-	if initCmd == "" {
-		initCmd = "sleep infinity"
-	}
-	args = append(args, strings.Fields(initCmd)...)
+	args := buildRunArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "already in use") || strings.Contains(stderr, "already exists") {
+		if isAlreadyExistsError(stderr) {
 			return nil, ErrAlreadyExists
 		}
-		return nil, podmanError("run container", result, err)
+		return nil, cliError("run container", result, err)
 	}
 
 	// Container ID is returned on stdout
@@ -103,77 +70,21 @@ func (r *podmanRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) err
 		return ErrNotRunning
 	}
 
-	args := []string{"exec"}
-
-	if cfg.Interactive {
-		args = append(args, "-it")
-	}
-
-	if cfg.Workdir != "" {
-		args = append(args, "-w", cfg.Workdir)
-	}
-
-	for _, e := range cfg.Env {
-		args = append(args, "-e", e)
-	}
-
-	args = append(args, id)
-	args = append(args, cfg.Command...)
+	args := buildExecArgs(id, cfg)
 
 	if cfg.Interactive {
 		return r.execInteractive(ctx, args)
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
-		return podmanError("exec in container", result, err)
+		return cliError("exec in container", result, err)
 	}
 
 	return nil
-}
-
-// execInteractive runs the podman exec command with TTY support.
-func (r *podmanRuntime) execInteractive(ctx context.Context, args []string) error {
-	stdinFd := int(os.Stdin.Fd())
-
-	// Check if stdin is a terminal
-	if !term.IsTerminal(stdinFd) {
-		// Fall back to non-interactive mode
-		_, err := r.exec.Run(ctx, &exec.RunOptions{
-			Name:   "podman",
-			Args:   args,
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		})
-		return err
-	}
-
-	// Put terminal in raw mode
-	oldState, err := term.MakeRaw(stdinFd)
-	if err != nil {
-		return fmt.Errorf("set terminal raw mode: %w", err)
-	}
-	defer func() { _ = term.Restore(stdinFd, oldState) }()
-
-	// Handle window resize signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
-	defer signal.Stop(sigCh)
-
-	// Run the command with stdio attached
-	_, err = r.exec.Run(ctx, &exec.RunOptions{
-		Name:   "podman",
-		Args:   args,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	})
-
-	return err
 }
 
 func (r *podmanRuntime) Stop(ctx context.Context, id string) error {
@@ -189,11 +100,11 @@ func (r *podmanRuntime) Stop(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: []string{"stop", id},
 	})
 	if err != nil {
-		return podmanError("stop container", result, err)
+		return cliError("stop container", result, err)
 	}
 
 	return nil
@@ -212,11 +123,11 @@ func (r *podmanRuntime) Start(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: []string{"start", id},
 	})
 	if err != nil {
-		return podmanError("start container", result, err)
+		return cliError("start container", result, err)
 	}
 
 	return nil
@@ -224,15 +135,15 @@ func (r *podmanRuntime) Start(ctx context.Context, id string) error {
 
 func (r *podmanRuntime) Remove(ctx context.Context, id string) error {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: []string{"rm", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "no such") || strings.Contains(stderr, "no container") {
+		if isNotFoundError(stderr) {
 			return ErrNotFound
 		}
-		return podmanError("remove container", result, err)
+		return cliError("remove container", result, err)
 	}
 
 	return nil
@@ -240,15 +151,15 @@ func (r *podmanRuntime) Remove(ctx context.Context, id string) error {
 
 func (r *podmanRuntime) Get(ctx context.Context, id string) (*Container, error) {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: []string{"inspect", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "no such") || strings.Contains(stderr, "no container") {
+		if isNotFoundError(stderr) {
 			return nil, ErrNotFound
 		}
-		return nil, podmanError("inspect container", result, err)
+		return nil, cliError("inspect container", result, err)
 	}
 
 	var infos []podmanInspect
@@ -271,11 +182,11 @@ func (r *podmanRuntime) List(ctx context.Context, filter ListFilter) ([]Containe
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
-		return nil, podmanError("list containers", result, err)
+		return nil, cliError("list containers", result, err)
 	}
 
 	// Handle empty list
@@ -298,16 +209,10 @@ func (r *podmanRuntime) List(ctx context.Context, filter ListFilter) ([]Containe
 }
 
 func (r *podmanRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
-	args := []string{"build", "-t", cfg.Tag}
-
-	if cfg.Dockerfile != "" {
-		args = append(args, "-f", cfg.Dockerfile)
-	}
-
-	args = append(args, cfg.Context)
+	args := buildBuildArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "podman",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
@@ -332,13 +237,7 @@ type podmanInspect struct {
 }
 
 func (p *podmanInspect) toContainer() *Container {
-	status := StatusUnknown
-	switch strings.ToLower(p.State.Status) {
-	case cliStatusRunning:
-		status = StatusRunning
-	case cliStatusStopped, cliStatusExited, cliStatusCreated:
-		status = StatusStopped
-	}
+	status := parseContainerStatus(p.State.Status)
 
 	// Remove leading "/" from name if present
 	name := strings.TrimPrefix(p.Name, "/")
@@ -377,13 +276,7 @@ type podmanListItem struct {
 }
 
 func (p *podmanListItem) toContainer() Container {
-	status := StatusUnknown
-	switch strings.ToLower(p.State) {
-	case cliStatusRunning:
-		status = StatusRunning
-	case cliStatusStopped, cliStatusExited, cliStatusCreated:
-		status = StatusStopped
-	}
+	status := parseContainerStatus(p.State)
 
 	name := ""
 	if len(p.Names) > 0 {
@@ -397,8 +290,4 @@ func (p *podmanListItem) toContainer() Container {
 		Status:    status,
 		CreatedAt: time.Unix(p.Created, 0),
 	}
-}
-
-func (r *podmanRuntime) ExecCommand() []string {
-	return []string{"podman", "exec"}
 }

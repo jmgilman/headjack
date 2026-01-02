@@ -4,13 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/term"
 
 	"github.com/jmgilman/headjack/internal/exec"
 )
@@ -22,63 +17,35 @@ type AppleConfig struct {
 }
 
 type appleRuntime struct {
-	exec   exec.Executor
+	baseRuntime
 	config AppleConfig
 }
 
 // NewAppleRuntime creates a Runtime using Apple Containerization CLI.
 func NewAppleRuntime(e exec.Executor, cfg AppleConfig) Runtime {
-	return &appleRuntime{exec: e, config: cfg}
-}
-
-// containerError formats an error from the container CLI, including stderr if available.
-func containerError(operation string, result *exec.Result, err error) error {
-	if result != nil {
-		stderr := strings.TrimSpace(string(result.Stderr))
-		if stderr != "" {
-			return fmt.Errorf("%s: %s", operation, stderr)
-		}
+	return &appleRuntime{
+		baseRuntime: baseRuntime{
+			exec:        e,
+			binaryName:  "container",
+			execCommand: []string{"container", "exec"},
+		},
+		config: cfg,
 	}
-	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func (r *appleRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
-	args := []string{"run", "--detach", "--name", cfg.Name}
-
-	// Add merged flags (image labels + config, merged by manager)
-	args = append(args, cfg.Flags...)
-
-	for _, m := range cfg.Mounts {
-		mountSpec := fmt.Sprintf("%s:%s", m.Source, m.Target)
-		if m.ReadOnly {
-			mountSpec += ":ro"
-		}
-		args = append(args, "-v", mountSpec)
-	}
-
-	for _, e := range cfg.Env {
-		args = append(args, "-e", e)
-	}
-
-	args = append(args, cfg.Image)
-
-	// Add init command (default to "sleep infinity" if not specified)
-	initCmd := cfg.Init
-	if initCmd == "" {
-		initCmd = "sleep infinity"
-	}
-	args = append(args, strings.Fields(initCmd)...)
+	args := buildRunArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "already exists") {
+		if isAlreadyExistsError(stderr) {
 			return nil, ErrAlreadyExists
 		}
-		return nil, containerError("run container", result, err)
+		return nil, cliError("run container", result, err)
 	}
 
 	// Container ID is returned on stdout
@@ -103,77 +70,21 @@ func (r *appleRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) erro
 		return ErrNotRunning
 	}
 
-	args := []string{"exec"}
-
-	if cfg.Interactive {
-		args = append(args, "-it")
-	}
-
-	if cfg.Workdir != "" {
-		args = append(args, "-w", cfg.Workdir)
-	}
-
-	for _, e := range cfg.Env {
-		args = append(args, "-e", e)
-	}
-
-	args = append(args, id)
-	args = append(args, cfg.Command...)
+	args := buildExecArgs(id, cfg)
 
 	if cfg.Interactive {
 		return r.execInteractive(ctx, args)
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
-		return containerError("exec in container", result, err)
+		return cliError("exec in container", result, err)
 	}
 
 	return nil
-}
-
-// execInteractive runs the container exec command with TTY support.
-func (r *appleRuntime) execInteractive(ctx context.Context, args []string) error {
-	stdinFd := int(os.Stdin.Fd())
-
-	// Check if stdin is a terminal
-	if !term.IsTerminal(stdinFd) {
-		// Fall back to non-interactive mode
-		_, err := r.exec.Run(ctx, &exec.RunOptions{
-			Name:   "container",
-			Args:   args,
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		})
-		return err
-	}
-
-	// Put terminal in raw mode
-	oldState, err := term.MakeRaw(stdinFd)
-	if err != nil {
-		return fmt.Errorf("set terminal raw mode: %w", err)
-	}
-	defer func() { _ = term.Restore(stdinFd, oldState) }()
-
-	// Handle window resize signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
-	defer signal.Stop(sigCh)
-
-	// Run the command with stdio attached
-	_, err = r.exec.Run(ctx, &exec.RunOptions{
-		Name:   "container",
-		Args:   args,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	})
-
-	return err
 }
 
 func (r *appleRuntime) Stop(ctx context.Context, id string) error {
@@ -189,11 +100,11 @@ func (r *appleRuntime) Stop(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: []string{"stop", id},
 	})
 	if err != nil {
-		return containerError("stop container", result, err)
+		return cliError("stop container", result, err)
 	}
 
 	return nil
@@ -212,11 +123,11 @@ func (r *appleRuntime) Start(ctx context.Context, id string) error {
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: []string{"start", id},
 	})
 	if err != nil {
-		return containerError("start container", result, err)
+		return cliError("start container", result, err)
 	}
 
 	return nil
@@ -224,15 +135,15 @@ func (r *appleRuntime) Start(ctx context.Context, id string) error {
 
 func (r *appleRuntime) Remove(ctx context.Context, id string) error {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: []string{"rm", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
+		if isNotFoundError(stderr) {
 			return ErrNotFound
 		}
-		return containerError("remove container", result, err)
+		return cliError("remove container", result, err)
 	}
 
 	return nil
@@ -240,18 +151,18 @@ func (r *appleRuntime) Remove(ctx context.Context, id string) error {
 
 func (r *appleRuntime) Get(ctx context.Context, id string) (*Container, error) {
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: []string{"inspect", id},
 	})
 	if err != nil {
 		stderr := string(result.Stderr)
-		if strings.Contains(stderr, "not found") || strings.Contains(stderr, "no such") {
+		if isNotFoundError(stderr) {
 			return nil, ErrNotFound
 		}
-		return nil, containerError("inspect container", result, err)
+		return nil, cliError("inspect container", result, err)
 	}
 
-	var infos []containerInspect
+	var infos []appleInspect
 	if err := json.Unmarshal(result.Stdout, &infos); err != nil {
 		return nil, fmt.Errorf("parse container info: %w", err)
 	}
@@ -271,11 +182,11 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 	}
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
-		return nil, containerError("list containers", result, err)
+		return nil, cliError("list containers", result, err)
 	}
 
 	// Handle empty list
@@ -284,7 +195,7 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 		return []Container{}, nil
 	}
 
-	var items []containerListItem
+	var items []appleListItem
 	if err := json.Unmarshal(result.Stdout, &items); err != nil {
 		return nil, fmt.Errorf("parse container list: %w", err)
 	}
@@ -298,16 +209,10 @@ func (r *appleRuntime) List(ctx context.Context, filter ListFilter) ([]Container
 }
 
 func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
-	args := []string{"build", "-t", cfg.Tag}
-
-	if cfg.Dockerfile != "" {
-		args = append(args, "-f", cfg.Dockerfile)
-	}
-
-	args = append(args, cfg.Context)
+	args := buildBuildArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: "container",
+		Name: r.binaryName,
 		Args: args,
 	})
 	if err != nil {
@@ -317,8 +222,8 @@ func (r *appleRuntime) Build(ctx context.Context, cfg *BuildConfig) error {
 	return nil
 }
 
-// containerInspect represents the JSON output of `container inspect`.
-type containerInspect struct {
+// appleInspect represents the JSON output of `container inspect`.
+type appleInspect struct {
 	Status        string `json:"status"`
 	Configuration struct {
 		ID    string `json:"id"`
@@ -328,26 +233,18 @@ type containerInspect struct {
 	} `json:"configuration"`
 }
 
-func (c *containerInspect) toContainer() *Container {
-	status := StatusUnknown
-	switch strings.ToLower(c.Status) {
-	case cliStatusRunning:
-		status = StatusRunning
-	case cliStatusStopped, cliStatusExited:
-		status = StatusStopped
-	}
-
+func (c *appleInspect) toContainer() *Container {
 	return &Container{
 		ID:     c.Configuration.ID,
 		Name:   c.Configuration.ID,
 		Image:  c.Configuration.Image.Reference,
-		Status: status,
+		Status: parseContainerStatus(c.Status),
 	}
 }
 
-// containerListItem represents a single item in `container list` JSON output.
+// appleListItem represents a single item in `container list` JSON output.
 // Note: Apple container list has same format as inspect.
-type containerListItem struct {
+type appleListItem struct {
 	Status        string `json:"status"`
 	Configuration struct {
 		ID    string `json:"id"`
@@ -357,23 +254,11 @@ type containerListItem struct {
 	} `json:"configuration"`
 }
 
-func (c *containerListItem) toContainer() Container {
-	status := StatusUnknown
-	switch strings.ToLower(c.Status) {
-	case cliStatusRunning:
-		status = StatusRunning
-	case cliStatusStopped, cliStatusExited:
-		status = StatusStopped
-	}
-
+func (c *appleListItem) toContainer() Container {
 	return Container{
 		ID:     c.Configuration.ID,
 		Name:   c.Configuration.ID,
 		Image:  c.Configuration.Image.Reference,
-		Status: status,
+		Status: parseContainerStatus(c.Status),
 	}
-}
-
-func (r *appleRuntime) ExecCommand() []string {
-	return []string{"container", "exec"}
 }

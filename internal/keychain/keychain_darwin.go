@@ -2,7 +2,11 @@
 
 package keychain
 
-import gokeychain "github.com/keybase/go-keychain"
+import (
+	"errors"
+
+	gokeychain "github.com/keybase/go-keychain"
+)
 
 // serviceName is the service identifier used for all headjack credentials.
 const serviceName = "com.headjack.cli"
@@ -40,7 +44,7 @@ func (k *keychain) Get(account string) (string, error) {
 	query.SetReturnData(true)
 
 	results, err := gokeychain.QueryItem(query)
-	if err == gokeychain.ErrorItemNotFound {
+	if errors.Is(err, gokeychain.ErrorItemNotFound) {
 		return "", ErrNotFound
 	}
 	if err != nil {
@@ -60,7 +64,7 @@ func (k *keychain) Delete(account string) error {
 	item.SetAccount(account)
 
 	err := gokeychain.DeleteItem(item)
-	if err == gokeychain.ErrorItemNotFound {
+	if errors.Is(err, gokeychain.ErrorItemNotFound) {
 		return nil
 	}
 	return err

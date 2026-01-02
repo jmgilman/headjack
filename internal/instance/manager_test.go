@@ -651,6 +651,10 @@ func TestManager_Attach(t *testing.T) {
 	})
 }
 
+// TestSanitizeBranch tests the branch name sanitization logic used for
+// generating container names and worktree paths. This is tested directly
+// because the behavior is critical for naming consistency and hard to verify
+// through the public API without creating actual containers.
 func TestSanitizeBranch(t *testing.T) {
 	tests := []struct {
 		input    string

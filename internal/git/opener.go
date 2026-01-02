@@ -10,17 +10,6 @@ import (
 	"github.com/jmgilman/headjack/internal/exec"
 )
 
-// openerGitError formats an error from a git command in the opener, including stderr if available.
-func openerGitError(operation string, result *exec.Result, err error) error {
-	if result != nil {
-		stderr := strings.TrimSpace(string(result.Stderr))
-		if stderr != "" {
-			return fmt.Errorf("%s: %s", operation, stderr)
-		}
-	}
-	return fmt.Errorf("%s: %w", operation, err)
-}
-
 type opener struct {
 	exec exec.Executor
 }
@@ -65,7 +54,7 @@ func (o *opener) getRepoRoot(ctx context.Context, path string) (string, error) {
 				return "", ErrNotRepository
 			}
 		}
-		return "", openerGitError("get repository root", result, err)
+		return "", gitError("get repository root", result, err)
 	}
 
 	return strings.TrimSpace(string(result.Stdout)), nil
@@ -81,7 +70,7 @@ func (o *opener) generateIdentifier(ctx context.Context, root string) (string, e
 		Dir:  root,
 	})
 	if err != nil {
-		return "", openerGitError("get initial commit", result, err)
+		return "", gitError("get initial commit", result, err)
 	}
 
 	// Take first line (in case of multiple roots) and first 7 chars

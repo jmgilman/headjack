@@ -1,3 +1,6 @@
+// Package cmd implements the Headjack CLI commands using Cobra.
+// It provides commands for managing isolated LLM agent instances,
+// including create, attach, stop, remove, and session management.
 package cmd
 
 import (

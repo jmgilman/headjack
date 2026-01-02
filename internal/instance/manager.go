@@ -298,7 +298,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 func (m *Manager) Get(ctx context.Context, id string) (*Instance, error) {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -316,7 +316,7 @@ func (m *Manager) GetByBranch(ctx context.Context, repoPath, branch string) (*In
 
 	entry, err := m.catalog.GetByRepoBranch(ctx, repo.Identifier(), branch)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -326,6 +326,8 @@ func (m *Manager) GetByBranch(ctx context.Context, repoPath, branch string) (*In
 }
 
 // List returns all instances matching the filter.
+// Instances with degraded containers (e.g., container not found) are silently
+// skipped to ensure the list operation completes even if some instances have issues.
 func (m *Manager) List(ctx context.Context, filter ListFilter) ([]Instance, error) {
 	entries, err := m.catalog.List(ctx, catalog.ListFilter{
 		RepoID: filter.RepoID,
@@ -339,7 +341,8 @@ func (m *Manager) List(ctx context.Context, filter ListFilter) ([]Instance, erro
 	for i := range entries {
 		inst, err := m.entryToInstance(ctx, &entries[i])
 		if err != nil {
-			// Log and continue on individual failures
+			// Skip degraded instances (e.g., container not found) to ensure
+			// the list operation completes successfully
 			continue
 		}
 		instances = append(instances, *inst)
@@ -352,7 +355,7 @@ func (m *Manager) List(ctx context.Context, filter ListFilter) ([]Instance, erro
 func (m *Manager) Stop(ctx context.Context, id string) error {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -374,7 +377,7 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 func (m *Manager) Start(ctx context.Context, id string) error {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -533,7 +536,7 @@ func (m *Manager) stopContainerWithRetry(ctx context.Context, containerID string
 func (m *Manager) Remove(ctx context.Context, id string) error {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -576,7 +579,7 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, error) {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -634,7 +637,7 @@ func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, er
 func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error {
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -914,7 +917,7 @@ echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/setti
 func (m *Manager) getRunningInstance(ctx context.Context, instanceID string) (*catalog.Entry, error) {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -940,7 +943,7 @@ func (m *Manager) getRunningInstance(ctx context.Context, instanceID string) (*c
 func (m *Manager) GetSession(ctx context.Context, instanceID, sessionName string) (*Session, error) {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -966,7 +969,7 @@ func (m *Manager) GetSession(ctx context.Context, instanceID, sessionName string
 func (m *Manager) ListSessions(ctx context.Context, instanceID string) ([]Session, error) {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -991,7 +994,7 @@ func (m *Manager) ListSessions(ctx context.Context, instanceID string) ([]Sessio
 func (m *Manager) KillSession(ctx context.Context, instanceID, sessionName string) error {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -1036,7 +1039,7 @@ func (m *Manager) KillSession(ctx context.Context, instanceID, sessionName strin
 func (m *Manager) AttachSession(ctx context.Context, instanceID, sessionName string) error {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("get catalog entry: %w", err)
@@ -1110,7 +1113,7 @@ func (m *Manager) cleanupExitedSession(ctx context.Context, instanceID, sessionN
 func (m *Manager) GetMRUSession(ctx context.Context, instanceID string) (*Session, error) {
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
-		if err == catalog.ErrNotFound {
+		if errors.Is(err, catalog.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get catalog entry: %w", err)
@@ -1138,10 +1141,12 @@ func (m *Manager) GetMRUSession(ctx context.Context, instanceID string) (*Sessio
 	}, nil
 }
 
-// GlobalMRUSession represents a session with its instance context.
+// GlobalMRUSession represents the most recently used session along with
+// its containing instance information. This is returned by GetGlobalMRUSession
+// to provide context about which instance owns the session.
 type GlobalMRUSession struct {
-	InstanceID string
-	Session    Session
+	InstanceID string  // ID of the instance containing the session
+	Session    Session // The most recently used session
 }
 
 // GetGlobalMRUSession returns the most recently used session across all instances.

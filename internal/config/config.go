@@ -100,36 +100,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// IsValidAgent returns true if the agent name is valid.
-func (c *Config) IsValidAgent(name string) bool {
-	return validAgents[name]
-}
-
-// ValidAgentNames returns the list of valid agent names.
-func (c *Config) ValidAgentNames() []string {
-	return []string{"claude", "gemini", "codex"}
-}
-
-// IsValidMultiplexer returns true if the multiplexer name is valid.
-func (c *Config) IsValidMultiplexer(name string) bool {
-	return validMultiplexers[name]
-}
-
-// ValidMultiplexerNames returns the list of valid multiplexer names.
-func (c *Config) ValidMultiplexerNames() []string {
-	return []string{"tmux", "zellij"}
-}
-
-// IsValidRuntime returns true if the runtime name is valid.
-func (c *Config) IsValidRuntime(name string) bool {
-	return validRuntimes[name]
-}
-
-// ValidRuntimeNames returns the list of valid runtime names.
-func (c *Config) ValidRuntimeNames() []string {
-	return []string{"podman", "apple"}
-}
-
 // Loader provides configuration loading and saving.
 type Loader struct {
 	v       *viper.Viper

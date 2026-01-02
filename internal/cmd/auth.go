@@ -35,9 +35,27 @@ The stored token uses your Claude Pro/Max subscription rather than API billing.`
 	RunE: runAuthClaude,
 }
 
+var authGeminiCmd = &cobra.Command{
+	Use:   "gemini",
+	Short: "Configure Gemini CLI authentication",
+	Long: `Configure Gemini CLI authentication for use in Headjack containers.
+
+This command reads existing Gemini CLI credentials and stores them securely
+in the macOS Keychain. You must first authenticate with Gemini CLI by running
+'gemini' and completing the Google OAuth login flow.
+
+The stored credentials use your Google AI Pro/Ultra subscription rather than API billing.`,
+	Example: `  # First, authenticate with Gemini CLI (if not already done)
+  gemini
+  # Then, store credentials in Headjack
+  headjack auth gemini`,
+	RunE: runAuthGemini,
+}
+
 func init() {
 	rootCmd.AddCommand(authCmd)
 	authCmd.AddCommand(authClaudeCmd)
+	authCmd.AddCommand(authGeminiCmd)
 }
 
 func runAuthClaude(cmd *cobra.Command, _ []string) error {
@@ -53,5 +71,19 @@ func runAuthClaude(cmd *cobra.Command, _ []string) error {
 
 	fmt.Println()
 	fmt.Println("Authentication successful! Token stored in macOS Keychain.")
+	return nil
+}
+
+func runAuthGemini(cmd *cobra.Command, _ []string) error {
+	fmt.Println("Reading Gemini CLI credentials...")
+
+	provider := auth.NewGeminiProvider()
+	storage := keychain.New()
+
+	if err := provider.Authenticate(cmd.Context(), storage); err != nil {
+		return fmt.Errorf("failed to store credentials: %w", err)
+	}
+
+	fmt.Println("Credentials stored in macOS Keychain.")
 	return nil
 }

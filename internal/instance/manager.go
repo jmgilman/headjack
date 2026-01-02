@@ -807,7 +807,7 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 	}
 
 	// Run agent-specific setup before starting the session
-	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType); setupErr != nil {
+	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType, cfg.Env); setupErr != nil {
 		return nil, fmt.Errorf("agent setup: %w", setupErr)
 	}
 
@@ -871,19 +871,34 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 
 // runAgentSetup performs agent-specific setup before starting a session.
 // For Claude, this creates the config file needed to skip onboarding.
-func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType) error {
-	if sessionType != catalog.SessionTypeClaude {
+// For Gemini, this writes OAuth credentials to the expected file location.
+func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType, env []string) error {
+	switch sessionType {
+	case catalog.SessionTypeClaude:
+		// Create ~/.claude.json with hasCompletedOnboarding to skip interactive setup.
+		// This is required for OAuth token authentication to work in headless environments.
+		// See: https://github.com/anthropics/claude-code/issues/8938
+		setupCmd := `mkdir -p ~/.claude && echo '{"hasCompletedOnboarding":true}' > ~/.claude.json`
+		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+			Command: []string{"sh", "-c", setupCmd},
+		})
+
+	case catalog.SessionTypeGemini:
+		// Write Gemini config files from env vars.
+		// GEMINI_OAUTH_CREDS contains JSON with oauth_creds and google_accounts.
+		// We also write a minimal settings.json to set the auth type.
+		setupCmd := `mkdir -p ~/.gemini && \
+echo "$GEMINI_OAUTH_CREDS" | jq -r '.oauth_creds' > ~/.gemini/oauth_creds.json && \
+echo "$GEMINI_OAUTH_CREDS" | jq -r '.google_accounts' > ~/.gemini/google_accounts.json && \
+echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/settings.json`
+		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+			Command: []string{"sh", "-c", setupCmd},
+			Env:     env,
+		})
+
+	default:
 		return nil
 	}
-
-	// Create ~/.claude.json with hasCompletedOnboarding to skip interactive setup.
-	// This is required for OAuth token authentication to work in headless environments.
-	// See: https://github.com/anthropics/claude-code/issues/8938
-	setupCmd := `mkdir -p ~/.claude && echo '{"hasCompletedOnboarding":true}' > ~/.claude.json`
-
-	return m.runtime.Exec(ctx, containerID, container.ExecConfig{
-		Command: []string{"sh", "-c", setupCmd},
-	})
 }
 
 // getRunningInstance retrieves an instance and verifies its container is running.

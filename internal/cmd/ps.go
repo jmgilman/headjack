@@ -61,13 +61,13 @@ func listInstances(cmd *cobra.Command) error {
 
 	// If not showing all, filter by current repo
 	if !all {
-		repoPath, err := repoPath()
-		if err != nil {
-			return err
+		repoPathValue, pathErr := repoPath()
+		if pathErr != nil {
+			return pathErr
 		}
 
 		opener := git.NewOpener(exec.New())
-		repo, openErr := opener.Open(cmd.Context(), repoPath)
+		repo, openErr := opener.Open(cmd.Context(), repoPathValue)
 		if openErr != nil {
 			return fmt.Errorf("open repository: %w", openErr)
 		}

@@ -5,11 +5,14 @@
 # For Docker-in-Docker support, use the dind variant instead.
 # See docs/designs/base-image.md for full specification.
 
-ARG BASE_IMAGE=ghcr.io/jmgilman/headjack:base
 # hadolint ignore=DL3006
-FROM ${BASE_IMAGE}
+FROM base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Switch to root - systemd requires root privileges as PID 1
+# hadolint ignore=DL3002
+USER root
 
 # =============================================================================
 # Install systemd

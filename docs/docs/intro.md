@@ -7,7 +7,7 @@ description: Spawn isolated LLM coding agents in container environments
 
 # Headjack
 
-Headjack is a macOS CLI tool for spawning isolated CLI-based LLM coding agents in container environments. Each agent runs in its own VM-isolated container with a dedicated git worktree, enabling safe parallel development across multiple branches.
+Headjack is a macOS and Linux CLI tool for spawning isolated CLI-based LLM coding agents in container environments. Each agent runs in its own VM-isolated container with a dedicated git worktree, enabling safe parallel development across multiple branches.
 
 ## Why Headjack?
 

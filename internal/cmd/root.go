@@ -133,8 +133,8 @@ func getRuntimeBinary() string {
 			return "docker"
 		}
 	}
-	// Default to podman
-	return "podman"
+	// Default to docker
+	return "docker"
 }
 
 // initManager initializes the instance manager with all dependencies.
@@ -162,9 +162,9 @@ func initManager() error {
 	executor := hjexec.New()
 	store := catalog.NewStore(catalogPath)
 
-	// Select runtime: config > default (podman)
+	// Select runtime: config > default (docker)
 	var runtime container.Runtime
-	runtimeName := "podman" // default
+	runtimeName := "docker" // default
 	if appConfig != nil && appConfig.Runtime.Name != "" {
 		runtimeName = appConfig.Runtime.Name
 	}

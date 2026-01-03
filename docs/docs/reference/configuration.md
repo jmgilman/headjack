@@ -64,7 +64,7 @@ Container runtime configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `runtime.name` | string | `podman` | Container runtime to use. Valid values: `podman`, `apple`, `docker`. |
+| `runtime.name` | string | `docker` | Container runtime to use. Valid values: `podman`, `apple`, `docker`. |
 | `runtime.flags` | map[string]any | `{}` | Additional flags to pass to the container runtime. |
 
 ## Example Configuration
@@ -91,7 +91,7 @@ storage:
   logs: ~/.local/share/headjack/logs
 
 runtime:
-  name: podman
+  name: docker
   flags: {}
 ```
 

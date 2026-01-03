@@ -23,7 +23,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## What We Will Accomplish
 
-1. Install Headjack on your macOS system
+1. Install Headjack on your macOS or Linux system
 2. Configure authentication for Claude Code
 3. Create an instance and spawn an agent session
 4. Interact with the agent and observe its isolated environment
@@ -34,7 +34,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 Before starting, ensure you have:
 
-- **macOS with a container runtime installed** - Headjack supports Podman (default), Docker, or Apple Container
+- **macOS or Linux with a container runtime installed** - Headjack supports Docker (default), Podman, or Apple Container
 - **Git installed** - Verify with `git --version`
 - **A Claude Pro/Max subscription OR an Anthropic API key** - For Claude Code authentication
 - **A git repository to work in** - Any project repository will work

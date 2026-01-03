@@ -1,0 +1,56 @@
+name: Integration Tests (Linux x86)
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'integration/**'
+      - '.github/workflows/integration-*.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'integration/**'
+      - '.github/workflows/integration-*.yml'
+
+jobs:
+  integration:
+    name: Integration
+    runs-on: warp-ubuntu-latest-x64-4x
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull container image
+        run: docker pull ghcr.io/gilmanlab/headjack:base
+
+      - name: Build hjk binary
+        run: go build -o hjk .
+
+      - name: Run integration tests
+        env:
+          HEADJACK_TEST_RUNTIME: docker
+          HJK_BINARY: ${{ github.workspace }}/hjk
+        run: go test -v -tags=integration -timeout=30m ./integration/...

@@ -1,0 +1,42 @@
+# Test hjk config command
+# Tests config viewing and setting without container runtime
+
+# Show all configuration
+exec hjk config
+stdout 'default:'
+stdout 'baseimage:'
+stdout 'runtime:'
+stdout 'storage:'
+! stderr .
+
+# Get specific config value (use dot notation key, not YAML key)
+exec hjk config default.base_image
+stdout 'ghcr.io/gilmanlab/headjack:base'
+! stderr .
+
+# Get runtime name (should match test runtime)
+exec hjk config runtime.name
+! stderr .
+
+# Set a valid agent
+exec hjk config default.agent claude
+stdout 'Set default.agent = claude'
+! stderr .
+
+# Verify the value was set
+exec hjk config default.agent
+stdout 'claude'
+! stderr .
+
+# Clear the agent (set to empty)
+exec hjk config default.agent ''
+stdout 'Set default.agent ='
+! stderr .
+
+# Test invalid agent name
+! exec hjk config default.agent invalid-agent
+stderr 'invalid agent'
+
+# Test invalid key
+! exec hjk config nonexistent.key
+stderr 'invalid configuration key'

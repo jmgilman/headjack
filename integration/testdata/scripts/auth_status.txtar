@@ -1,0 +1,20 @@
+# Test hjk auth --status command
+# This test verifies auth status checking without container runtime
+# Skip on Linux - keyring requires DBus which isn't available in headless VMs
+[!darwin] skip 'keyring requires DBus on Linux'
+
+# Check Claude auth status (may be configured or not depending on machine)
+# Output is "not configured", "subscription", "api key", or "configured (unknown type)"
+exec hjk auth claude --status
+stdout 'claude: (not configured|subscription|api key|configured)'
+! stderr .
+
+# Check Gemini auth status
+exec hjk auth gemini --status
+stdout 'gemini: (not configured|subscription|api key|configured)'
+! stderr .
+
+# Check Codex auth status
+exec hjk auth codex --status
+stdout 'codex: (not configured|subscription|api key|configured)'
+! stderr .

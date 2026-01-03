@@ -127,6 +127,7 @@ const (
 	labelInit        = "io.headjack.init"
 	labelPodmanFlags = "io.headjack.podman.flags"
 	labelAppleFlags  = "io.headjack.apple.flags"
+	labelDockerFlags = "io.headjack.docker.flags"
 )
 
 // getImageRuntimeConfig fetches image metadata and extracts runtime configuration from labels.
@@ -134,6 +135,7 @@ const (
 // Runtime-specific flags are extracted based on the configured runtime type:
 // - Podman: io.headjack.podman.flags
 // - Apple: io.headjack.apple.flags
+// - Docker: io.headjack.docker.flags
 func (m *Manager) getImageRuntimeConfig(ctx context.Context, image string) imageRuntimeConfig {
 	cfg := imageRuntimeConfig{
 		Init: "", // Empty means runtime will use default "sleep infinity"
@@ -162,6 +164,8 @@ func (m *Manager) getImageRuntimeConfig(ctx context.Context, image string) image
 			flagsLabel = labelPodmanFlags
 		case RuntimeApple:
 			flagsLabel = labelAppleFlags
+		case RuntimeDocker:
+			flagsLabel = labelDockerFlags
 		}
 		if flagsLabel != "" {
 			if v, ok := metadata.Labels[flagsLabel]; ok {

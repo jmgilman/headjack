@@ -1,0 +1,8 @@
+# Test hjk version command
+# This is the simplest test - no container runtime required
+
+exec hjk version
+stdout 'headjack'
+stdout 'commit:'
+stdout 'built:'
+! stderr .

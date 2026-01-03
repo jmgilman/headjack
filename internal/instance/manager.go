@@ -79,7 +79,7 @@ const (
 type ManagerConfig struct {
 	WorktreesDir string      // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
 	LogsDir      string      // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
-	RuntimeType  RuntimeType // Container runtime type (podman or apple)
+	RuntimeType  RuntimeType // Container runtime type (docker, podman, or apple)
 	ConfigFlags  flags.Flags // Flags from config file (take precedence over image labels)
 }
 
@@ -100,7 +100,7 @@ type Manager struct {
 func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, reg registryClient, cfg ManagerConfig) *Manager {
 	runtimeType := cfg.RuntimeType
 	if runtimeType == "" {
-		runtimeType = RuntimePodman // Default to Podman for backward compatibility
+		runtimeType = RuntimeDocker
 	}
 
 	return &Manager{

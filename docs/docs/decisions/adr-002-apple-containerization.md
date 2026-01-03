@@ -88,9 +88,9 @@ While Apple Containerization Framework remains the recommended runtime for its s
 
 | Runtime | Configuration | Binary | Notes |
 |---------|--------------|--------|-------|
-| Podman | `runtime.name: podman` | `podman` | Default runtime. Cross-platform, daemonless. |
+| Docker | `runtime.name: docker` | `docker` | Default runtime. Cross-platform, widely available. |
 | Apple | `runtime.name: apple` | `container` | Recommended for macOS 26+. VM-level isolation. |
-| Docker | `runtime.name: docker` | `docker` | Industry standard. Requires Docker Desktop on macOS. |
+| Podman | `runtime.name: podman` | `podman` | Daemonless alternative. |
 
 Users can configure their preferred runtime via:
 

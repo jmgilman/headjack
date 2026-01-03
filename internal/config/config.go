@@ -149,7 +149,7 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("agents.claude.env", map[string]string{"CLAUDE_CODE_MAX_TURNS": "100"})
 	l.v.SetDefault("agents.gemini.env", map[string]string{})
 	l.v.SetDefault("agents.codex.env", map[string]string{})
-	l.v.SetDefault("runtime.name", "podman")
+	l.v.SetDefault("runtime.name", "docker")
 	l.v.SetDefault("runtime.flags", map[string]any{})
 }
 

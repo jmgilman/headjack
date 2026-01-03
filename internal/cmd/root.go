@@ -33,6 +33,9 @@ const runtimeNameApple = "apple"
 // runtimeNameDocker is the runtime name for Docker.
 const runtimeNameDocker = "docker"
 
+// runtimeBinaryDocker is the binary name for Docker.
+const runtimeBinaryDocker = "docker"
+
 // mgr is the instance manager, initialized in PersistentPreRunE.
 var mgr *instance.Manager
 
@@ -130,11 +133,11 @@ func getRuntimeBinary() string {
 		case runtimeNameApple:
 			return "container"
 		case runtimeNameDocker:
-			return "docker"
+			return runtimeBinaryDocker
 		}
 	}
-	// Default to podman
-	return "podman"
+	// Default to docker
+	return runtimeBinaryDocker
 }
 
 // initManager initializes the instance manager with all dependencies.
@@ -162,9 +165,9 @@ func initManager() error {
 	executor := hjexec.New()
 	store := catalog.NewStore(catalogPath)
 
-	// Select runtime: config > default (podman)
+	// Select runtime: config > default (docker)
 	var runtime container.Runtime
-	runtimeName := "podman" // default
+	runtimeName := runtimeNameDocker // default
 	if appConfig != nil && appConfig.Runtime.Name != "" {
 		runtimeName = appConfig.Runtime.Name
 	}

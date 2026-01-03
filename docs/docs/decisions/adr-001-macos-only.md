@@ -1,14 +1,14 @@
 ---
 sidebar_position: 1
-title: "ADR-001: macOS-Only Platform Support"
-description: Decision to support macOS exclusively for initial release
+title: "ADR-001: Initial macOS-Only Platform Support"
+description: Initial decision to support macOS exclusively for the first release
 ---
 
-# ADR 001: macOS-Only Platform Support
+# ADR 001: Initial macOS-Only Platform Support
 
 ## Status
 
-Accepted
+Superseded
 
 ## Context
 
@@ -33,10 +33,10 @@ Relevant factors for this decision:
 
 ## Decision
 
-Headjack will support **macOS only** for the initial release.
+Headjack would be limited to macOS for the initial release.
 
-- Linux support is not ruled out but is not a priority
-- Windows support is explicitly out of scope with no intention to add it
+- Linux support was not ruled out but was not a priority
+- Windows support was explicitly out of scope with no intention to add it
 
 ## Consequences
 
@@ -55,5 +55,6 @@ Headjack will support **macOS only** for the initial release.
 
 ### Neutral
 
-- Linux support remains a future option if demand materializes
-- Decision can be revisited as project matures
+## Superseding Decision
+
+Headjack now supports both macOS and Linux, and Docker is the default runtime. This ADR remains for historical context, but the platform scope has expanded.

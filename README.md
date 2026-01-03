@@ -19,7 +19,7 @@ Headjack gives each AI coding agent its own VM-isolated container with a dedicat
 ## Installation
 
 ```bash
-brew install jmgilman/tap/headjack
+brew install GilmanLab/tap/headjack
 ```
 
 ## Quick Start

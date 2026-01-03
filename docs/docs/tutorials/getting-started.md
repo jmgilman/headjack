@@ -44,7 +44,7 @@ Before starting, ensure you have:
 Install Headjack using Homebrew:
 
 ```bash
-brew install jmgilman/tap/headjack
+brew install GilmanLab/tap/headjack
 ```
 
 Verify the installation:

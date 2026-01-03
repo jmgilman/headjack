@@ -3,9 +3,9 @@
 
 cleanup_containers
 
-# Create a test git repository
-exec git init testrepo
-cd testrepo
+# Create a test git repository with unique name
+exec git init testrepo-kill
+cd testrepo-kill
 exec git config user.email 'test@example.com'
 exec git config user.name 'Test User'
 exec git commit --allow-empty -m 'initial commit'
@@ -16,7 +16,8 @@ exec hjk run test/kill-session -d --name my-session
 stdout 'Created'
 ! stderr .
 
-sleep 2
+# Wait for container to be running
+wait_running test/kill-session
 
 # Verify the session exists
 exec hjk ps test/kill-session

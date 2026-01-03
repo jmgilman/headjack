@@ -4,9 +4,9 @@
 # Clean up any leftover containers from previous runs
 cleanup_containers
 
-# Create a test git repository
-exec git init testrepo
-cd testrepo
+# Create a test git repository with unique name
+exec git init testrepo-lifecycle
+cd testrepo-lifecycle
 exec git config user.email 'test@example.com'
 exec git config user.name 'Test User'
 exec git commit --allow-empty -m 'initial commit'
@@ -25,8 +25,8 @@ stdout 'Created instance'
 stdout 'detached'
 ! stderr .
 
-# Give the container time to start
-sleep 2
+# Wait for container to be running
+wait_running test/integration-lifecycle
 
 # Verify instance is listed and running
 exec hjk ps

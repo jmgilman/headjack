@@ -228,6 +228,9 @@ func cmdWaitRunning(ts *testscript.TestScript, neg bool, args []string) {
 		binary = "hjk"
 	}
 
+	// Get current working directory (tracks cd commands in script)
+	workDir := ts.MkAbs(".")
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		cmd := exec.Command(binary, "ps")
@@ -238,8 +241,9 @@ func cmdWaitRunning(ts *testscript.TestScript, neg bool, args []string) {
 			"XDG_CONFIG_HOME=" + ts.Getenv("XDG_CONFIG_HOME"),
 			"XDG_DATA_HOME=" + ts.Getenv("XDG_DATA_HOME"),
 			"HJK_BINARY=" + ts.Getenv("HJK_BINARY"),
+			"DOCKER_HOST=" + ts.Getenv("DOCKER_HOST"),
 		}
-		cmd.Dir = ts.Getenv("WORK")
+		cmd.Dir = workDir
 		output, err := cmd.Output()
 		if err == nil && strings.Contains(string(output), branch) && strings.Contains(string(output), "running") {
 			if !neg {

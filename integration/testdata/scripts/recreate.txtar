@@ -3,9 +3,9 @@
 
 cleanup_containers
 
-# Create a test git repository
-exec git init testrepo
-cd testrepo
+# Create a test git repository with unique name
+exec git init testrepo-recreate
+cd testrepo-recreate
 exec git config user.email 'test@example.com'
 exec git config user.name 'Test User'
 exec git commit --allow-empty -m 'initial commit'
@@ -16,7 +16,8 @@ exec hjk run test/recreate-instance -d
 stdout 'Created'
 ! stderr .
 
-sleep 2
+# Wait for container to be running
+wait_running test/recreate-instance
 
 # Verify instance is running
 exec hjk ps

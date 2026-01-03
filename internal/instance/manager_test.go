@@ -36,10 +36,10 @@ func TestNewManager(t *testing.T) {
 		assert.Equal(t, "/data/worktrees", mgr.worktreesDir)
 	})
 
-	t.Run("defaults RuntimeType to Podman when not specified", func(t *testing.T) {
+	t.Run("defaults RuntimeType to Docker when not specified", func(t *testing.T) {
 		mgr := NewManager(nil, nil, nil, nil, nil, ManagerConfig{})
 
-		assert.Equal(t, RuntimePodman, mgr.runtimeType)
+		assert.Equal(t, RuntimeDocker, mgr.runtimeType)
 	})
 
 	t.Run("respects explicit RuntimeType", func(t *testing.T) {

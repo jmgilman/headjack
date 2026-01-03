@@ -14,7 +14,7 @@ Accepted
 
 Headjack stores agent credentials (Claude, Gemini, Codex OAuth tokens) securely and injects them into containers at session start. The original implementation used `github.com/keybase/go-keychain`, which only supports macOS Keychain.
 
-As the project considers Linux support (via Podman), credential storage becomes a blocker. Linux has multiple options for secret storage:
+As Headjack adds Linux support (via OCI runtimes like Docker and Podman), credential storage becomes a blocker. Linux has multiple options for secret storage:
 
 1. **Secret Service API** (D-Bus): Used by GNOME Keyring and KDE Wallet. Works well on desktop Linux but requires a running D-Bus session.
 

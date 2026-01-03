@@ -2,7 +2,7 @@
 
 ![Headjack Banner](docs/static/img/banner.png)
 
-A macOS CLI tool for spawning isolated LLM coding agents in container environments.
+A macOS and Linux CLI tool for spawning isolated LLM coding agents in container environments.
 
 ## Overview
 
@@ -14,7 +14,7 @@ Headjack gives each AI coding agent its own VM-isolated container with a dedicat
 - **Branch-based Workflows** - One instance per git branch with dedicated worktrees
 - **Session Persistence** - Attach and detach from long-running agent sessions
 - **Multi-agent Support** - Claude Code, Gemini CLI, and Codex CLI
-- **Secure Authentication** - Credentials stored in macOS Keychain
+- **Secure Authentication** - Credentials stored in the system keychain
 
 ## Installation
 
@@ -48,8 +48,8 @@ Full documentation is available at [headjack.gilman.io](https://headjack.gilman.
 
 ## Requirements
 
-- macOS
-- [Podman](https://podman.io/) (default) or Apple Virtualization
+- macOS or Linux
+- [Docker](https://www.docker.com/) (default), [Podman](https://podman.io/), or Apple Containerization (macOS 26+)
 - Git
 
 ## License

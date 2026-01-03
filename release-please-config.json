@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "separate-pull-requests": true,
+  "include-v-in-tag": true,
+  "changelog-sections": [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance"},
+    {"type": "refactor", "section": "Code Refactoring"},
+    {"type": "revert", "section": "Reverts"},
+    {"type": "build", "section": "Build System"},
+    {"type": "chore", "section": "Miscellaneous"},
+    {"type": "docs", "section": "Documentation", "hidden": true},
+    {"type": "style", "section": "Styles", "hidden": true},
+    {"type": "test", "section": "Tests", "hidden": true},
+    {"type": "ci", "section": "Continuous Integration", "hidden": true}
+  ],
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "component": "cli",
+      "package-name": "headjack",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": false
+    },
+    "images/base": {
+      "release-type": "simple",
+      "component": "images/base",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "tag-separator": "/"
+    },
+    "images/systemd": {
+      "release-type": "simple",
+      "component": "images/systemd",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "tag-separator": "/"
+    },
+    "images/dind": {
+      "release-type": "simple",
+      "component": "images/dind",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "tag-separator": "/"
+    }
+  }
+}

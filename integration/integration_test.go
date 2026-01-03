@@ -122,8 +122,11 @@ func setupTestEnv(env *testscript.Env, runtimeName string) error {
 	env.Setenv("XDG_CONFIG_HOME", filepath.Join(testHome, ".config"))
 	env.Setenv("XDG_DATA_HOME", filepath.Join(testHome, ".local", "share"))
 
-	// Pass through HJK_BINARY if set
+	// Pass through HJK_BINARY if set, otherwise try to find hjk in PATH
+	// This ensures wait_running and other custom commands can find the binary
 	if binary := os.Getenv("HJK_BINARY"); binary != "" {
+		env.Setenv("HJK_BINARY", binary)
+	} else if binary, err := exec.LookPath("hjk"); err == nil {
 		env.Setenv("HJK_BINARY", binary)
 	}
 
@@ -225,7 +228,12 @@ func cmdWaitRunning(ts *testscript.TestScript, neg bool, args []string) {
 
 	binary := ts.Getenv("HJK_BINARY")
 	if binary == "" {
-		binary = "hjk"
+		// HJK_BINARY should be set by setupTestEnv, but fall back to PATH lookup
+		var err error
+		binary, err = exec.LookPath("hjk")
+		if err != nil {
+			ts.Fatalf("hjk binary not found: set HJK_BINARY or add hjk to PATH")
+		}
 	}
 
 	// Get current working directory (tracks cd commands in script)

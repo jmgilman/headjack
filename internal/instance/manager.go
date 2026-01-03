@@ -72,6 +72,7 @@ type RuntimeType string
 const (
 	RuntimePodman RuntimeType = "podman"
 	RuntimeApple  RuntimeType = "apple"
+	RuntimeDocker RuntimeType = "docker"
 )
 
 // ManagerConfig configures the Manager.

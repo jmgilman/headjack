@@ -14,7 +14,7 @@ This guide is being written. Check back soon!
 
 - macOS 26 or later
 - Git
-- Container runtime (Podman or Apple Container)
+- Container runtime (Podman, Docker, or Apple Container)
 
 ## Installation Steps
 

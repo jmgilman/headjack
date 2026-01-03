@@ -62,7 +62,7 @@ Common configuration keys:
 | `storage.worktrees` | string | Directory for git worktrees |
 | `storage.catalog` | string | Path to the instance catalog file |
 | `storage.logs` | string | Directory for session logs |
-| `runtime.name` | string | Container runtime (`podman`, `apple`) |
+| `runtime.name` | string | Container runtime (`podman`, `apple`, `docker`) |
 
 ## Configuration File
 

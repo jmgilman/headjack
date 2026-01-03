@@ -26,9 +26,11 @@ We evaluated several isolation technologies for macOS.
 
 **Docker**
 - Industry standard, excellent tooling and ecosystem
+- Widely available on macOS via Docker Desktop
 - Single-process optimization conflicts with multi-service agent needs
 - Docker-in-Docker requires privileged mode, weakening isolation
 - Namespace-based isolation, not hypervisor boundary
+- Note: Docker is now supported as a runtime option for users who prefer it
 
 **Lima**
 - CNCF incubating project, mature and well-documented
@@ -79,3 +81,21 @@ Use **Apple Containerization Framework** as the isolation technology for Headjac
 
 - By adopting early, we participate in the framework's growth through usage and bug reports
 - The iptables-legacy workaround for Docker-in-Docker is stable but adds base image complexity
+
+## Addendum: Multi-Runtime Support
+
+While Apple Containerization Framework remains the recommended runtime for its superior isolation properties, Headjack now supports multiple container runtimes to accommodate different user preferences and environments:
+
+| Runtime | Configuration | Binary | Notes |
+|---------|--------------|--------|-------|
+| Podman | `runtime.name: podman` | `podman` | Default runtime. Cross-platform, daemonless. |
+| Apple | `runtime.name: apple` | `container` | Recommended for macOS 26+. VM-level isolation. |
+| Docker | `runtime.name: docker` | `docker` | Industry standard. Requires Docker Desktop on macOS. |
+
+Users can configure their preferred runtime via:
+
+```bash
+hjk config runtime.name docker
+```
+
+This flexibility allows teams to use familiar tooling while still benefiting from Headjack's instance and session management.

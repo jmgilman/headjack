@@ -30,6 +30,9 @@ var baseDeps = []string{"git"}
 // runtimeNameApple is the runtime name for Apple's container framework.
 const runtimeNameApple = "apple"
 
+// runtimeNameDocker is the runtime name for Docker.
+const runtimeNameDocker = "docker"
+
 // mgr is the instance manager, initialized in PersistentPreRunE.
 var mgr *instance.Manager
 
@@ -122,8 +125,13 @@ func checkDependencies() error {
 
 // getRuntimeBinary returns the binary name for the configured runtime.
 func getRuntimeBinary() string {
-	if appConfig != nil && appConfig.Runtime.Name == runtimeNameApple {
-		return "container"
+	if appConfig != nil {
+		switch appConfig.Runtime.Name {
+		case runtimeNameApple:
+			return "container"
+		case runtimeNameDocker:
+			return "docker"
+		}
 	}
 	// Default to podman
 	return "podman"
@@ -163,6 +171,8 @@ func initManager() error {
 	switch runtimeName {
 	case runtimeNameApple:
 		runtime = container.NewAppleRuntime(executor, container.AppleConfig{})
+	case runtimeNameDocker:
+		runtime = container.NewDockerRuntime(executor, container.DockerConfig{})
 	default:
 		runtime = container.NewPodmanRuntime(executor, container.PodmanConfig{})
 	}
@@ -196,10 +206,14 @@ func initManager() error {
 
 // runtimeNameToType converts a runtime name string to RuntimeType.
 func runtimeNameToType(name string) instance.RuntimeType {
-	if name == runtimeNameApple {
+	switch name {
+	case runtimeNameApple:
 		return instance.RuntimeApple
+	case runtimeNameDocker:
+		return instance.RuntimeDocker
+	default:
+		return instance.RuntimePodman
 	}
-	return instance.RuntimePodman
 }
 
 // getConfigFlags parses runtime flags from config.

@@ -103,6 +103,33 @@ LABEL io.headjack.podman.flags="systemd=always privileged=true"
 
 ---
 
+### io.headjack.docker.flags
+
+Specifies additional flags to pass to Docker when running the container.
+
+| Property | Value |
+|----------|-------|
+| Key | `io.headjack.docker.flags` |
+| Value type | String (space-separated key=value pairs) |
+| Default | None |
+
+#### Description
+
+This label allows images to specify Docker-specific runtime flags that are required for correct operation. Headjack parses the value and applies the flags when creating the container. The format is the same as `io.headjack.podman.flags`.
+
+#### Example
+
+```dockerfile
+# Enable privileged mode
+LABEL io.headjack.docker.flags="privileged=true"
+```
+
+#### Usage in Official Images
+
+Not currently used in official images.
+
+---
+
 ### io.headjack.apple.flags
 
 Reserved for Apple Containerization Framework-specific flags.
@@ -171,7 +198,7 @@ LABEL io.headjack.init="/usr/local/bin/init.sh"
 
 ## Label Inspection
 
-You can inspect image labels using Docker or Podman:
+You can inspect image labels using Docker, Podman, or Apple Container:
 
 ```bash
 # Using Docker
@@ -179,6 +206,9 @@ docker inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Label
 
 # Using Podman
 podman inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Labels}}' | jq
+
+# Using Apple Container
+container inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Labels}}' | jq
 ```
 
 Example output:

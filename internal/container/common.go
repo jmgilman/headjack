@@ -363,7 +363,8 @@ func isAlreadyExistsError(stderr string) bool {
 
 // isNotFoundError checks if stderr indicates container not found.
 func isNotFoundError(stderr string) bool {
-	return strings.Contains(stderr, "no such") ||
-		strings.Contains(stderr, "no container") ||
-		strings.Contains(stderr, "not found")
+	normalized := strings.ToLower(stderr)
+	return strings.Contains(normalized, "no such") ||
+		strings.Contains(normalized, "no container") ||
+		strings.Contains(normalized, "not found")
 }

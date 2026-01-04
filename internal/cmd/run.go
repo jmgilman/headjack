@@ -307,7 +307,6 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 // Devcontainer mode is used when:
 //   - No --base flag was explicitly passed (imageExplicit is false)
 //   - A devcontainer.json exists in the repo
-//   - The runtime is Docker or Podman (not Apple)
 func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) instance.CreateConfig {
 	cfg := instance.CreateConfig{
 		Branch: branch,

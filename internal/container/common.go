@@ -25,7 +25,7 @@ type containerParser interface {
 }
 
 // baseRuntime provides shared functionality for container runtimes.
-// Concrete implementations (Podman, Apple) configure this with runtime-specific settings
+// Concrete implementations (Docker, Podman) configure this with runtime-specific settings
 // and provide a containerParser for JSON parsing.
 type baseRuntime struct {
 	exec        exec.Executor

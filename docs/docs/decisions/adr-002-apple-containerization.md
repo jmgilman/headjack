@@ -86,14 +86,15 @@ Use **Apple Containerization Framework** as the isolation technology for Headjac
 - By adopting early, we participate in the framework's growth through usage and bug reports
 - The iptables-legacy workaround for Docker-in-Docker is stable but adds base image complexity
 
-## Addendum: Multi-Runtime Support
+## Addendum: Runtime Evolution
 
-While Apple Containerization Framework remains the recommended runtime for its superior isolation properties, Headjack now supports multiple container runtimes to accommodate different user preferences and environments:
+This ADR originally established Apple Containerization Framework as the isolation technology. After further development, Headjack evolved to support multiple runtimes and eventually removed Apple Containerization support in favor of Docker and Podman for cross-platform compatibility.
+
+Current supported runtimes:
 
 | Runtime | Configuration | Binary | Notes |
 |---------|--------------|--------|-------|
 | Docker | `runtime.name: docker` | `docker` | Default runtime. Cross-platform, widely available. |
-| Apple | `runtime.name: apple` | `container` | Recommended for macOS 26+. VM-level isolation. |
 | Podman | `runtime.name: podman` | `podman` | Daemonless alternative. |
 
 Users can configure their preferred runtime via:
@@ -101,5 +102,3 @@ Users can configure their preferred runtime via:
 ```bash
 hjk config runtime.name docker
 ```
-
-This flexibility allows teams to use familiar tooling while still benefiting from Headjack's instance and session management.

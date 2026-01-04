@@ -130,6 +130,6 @@ type Runtime interface {
 
 	// ExecCommand returns the command prefix for executing commands in a container.
 	// This is used by the multiplexer to build commands that run inside containers.
-	// For example, Apple returns ["container", "exec"] and Podman returns ["podman", "exec"].
+	// For example, Docker returns ["docker", "exec"] and Podman returns ["podman", "exec"].
 	ExecCommand() []string
 }

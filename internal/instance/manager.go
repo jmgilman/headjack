@@ -79,7 +79,7 @@ const (
 type ManagerConfig struct {
 	WorktreesDir string        // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
 	LogsDir      string        // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
-	RuntimeType  RuntimeType   // Container runtime type (docker, podman, or apple)
+	RuntimeType  RuntimeType   // Container runtime type (docker or podman)
 	ConfigFlags  flags.Flags   // Flags from config file (take precedence over image labels)
 	Executor     exec.Executor // Command executor (for devcontainer runtime creation)
 }

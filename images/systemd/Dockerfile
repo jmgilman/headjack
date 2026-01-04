@@ -50,8 +50,10 @@ VOLUME ["/sys/fs/cgroup"]
 # These labels inform Headjack how to run the image:
 # - io.headjack.init: Command to run as PID 1 (overrides "sleep infinity" default)
 # - io.headjack.podman.flags: Space-separated key=value pairs for Podman flags
+# - io.headjack.docker.flags: Space-separated key=value pairs for Docker flags
 LABEL io.headjack.init="/lib/systemd/systemd"
 LABEL io.headjack.podman.flags="systemd=always"
+LABEL io.headjack.docker.flags="privileged=true"
 
 # systemd as init system
 CMD ["/lib/systemd/systemd"]

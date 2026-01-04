@@ -947,7 +947,11 @@ func (m *Manager) getRunningInstance(ctx context.Context, instanceID string) (*c
 	}
 
 	if c.Status != container.StatusRunning {
-		return nil, ErrInstanceNotRunning
+		return nil, &NotRunningError{
+			InstanceID:  entry.ID,
+			ContainerID: entry.ContainerID,
+			Status:      c.Status,
+		}
 	}
 
 	return entry, nil

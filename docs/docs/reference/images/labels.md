@@ -126,7 +126,11 @@ LABEL io.headjack.docker.flags="privileged=true"
 
 #### Usage in Official Images
 
-Not currently used in official images.
+| Image | Value |
+|-------|-------|
+| `base` | Not set |
+| `systemd` | `privileged=true` |
+| `dind` | Inherited from `systemd` |
 
 ---
 
@@ -181,6 +185,7 @@ RUN systemctl enable myservice
 # Re-declare labels (not inherited)
 LABEL io.headjack.init="/lib/systemd/systemd"
 LABEL io.headjack.podman.flags="systemd=always"
+LABEL io.headjack.docker.flags="privileged=true"
 ```
 
 ### Creating a Custom Init Image
@@ -216,7 +221,8 @@ Example output:
 ```json
 {
   "io.headjack.init": "/lib/systemd/systemd",
-  "io.headjack.podman.flags": "systemd=always"
+  "io.headjack.podman.flags": "systemd=always",
+  "io.headjack.docker.flags": "privileged=true"
 }
 ```
 

@@ -53,6 +53,7 @@ in predefined container environments.
 
 Each agent runs in its own VM-isolated container with a dedicated git worktree,
 enabling safe parallel development across multiple branches.`,
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkDependencies(); err != nil {
 			return err

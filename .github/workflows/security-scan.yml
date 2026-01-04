@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [base, systemd, dind]
+        variant: [base]
 
     steps:
       - name: Checkout repository

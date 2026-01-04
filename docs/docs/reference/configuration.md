@@ -36,7 +36,7 @@ Default values applied when creating new instances.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `default.agent` | string | `""` (empty) | Default agent to use. Valid values: `claude`, `gemini`, `codex`. Empty means no default. |
-| `default.base_image` | string | `ghcr.io/gilmanlab/headjack:base` | Container image to use for instances. Available variants: `:base` (minimal), `:systemd` (with init), `:dind` (with Docker). |
+| `default.base_image` | string | `ghcr.io/gilmanlab/headjack:base` | Container image to use for instances. |
 
 ### agents
 

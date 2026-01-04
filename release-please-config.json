@@ -29,20 +29,6 @@
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": true,
       "tag-separator": "/"
-    },
-    "images/systemd": {
-      "release-type": "simple",
-      "component": "images/systemd",
-      "changelog-path": "CHANGELOG.md",
-      "include-component-in-tag": true,
-      "tag-separator": "/"
-    },
-    "images/dind": {
-      "release-type": "simple",
-      "component": "images/dind",
-      "changelog-path": "CHANGELOG.md",
-      "include-component-in-tag": true,
-      "tag-separator": "/"
     }
   }
 }

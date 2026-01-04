@@ -22,7 +22,6 @@ const (
 )
 
 // DefaultBaseImage is the default container image.
-// Available variants: :base (minimal), :systemd (+ init), :dind (+ Docker)
 const DefaultBaseImage = "ghcr.io/gilmanlab/headjack:base"
 
 // Sentinel errors for configuration operations.

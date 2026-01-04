@@ -4,14 +4,12 @@ This document describes the release process for Headjack, covering the CLI and c
 
 ## Overview
 
-Headjack uses [release-please](https://github.com/googleapis/release-please) to automate releases. The system manages four independent components:
+Headjack uses [release-please](https://github.com/googleapis/release-please) to automate releases. The system manages two independent components:
 
 | Component | Tag Format | Changelog |
 |-----------|------------|-----------|
 | CLI | `v1.0.0` | `CHANGELOG.md` |
 | base image | `images/base/v1.0.0` | `images/base/CHANGELOG.md` |
-| systemd image | `images/systemd/v1.0.0` | `images/systemd/CHANGELOG.md` |
-| dind image | `images/dind/v1.0.0` | `images/dind/CHANGELOG.md` |
 
 ## Release Flow
 
@@ -101,7 +99,6 @@ git commit -m "feat: add instance list command"
 
 # Image changes (touches files in images/)
 git commit -m "feat(images/base): add ripgrep to base image"
-git commit -m "fix(images/dind): update Docker CE version"
 ```
 
 ## CLI Releases
@@ -146,21 +143,19 @@ Triggers on `v*` tags and runs GoReleaser with:
 
 Container images are built and published when `images/*/v*` tags are pushed.
 
-### Image Variants
+### Image Variant
 
 | Variant | Base | Features |
 |---------|------|----------|
 | `base` | Ubuntu 24.04 | Dev tools, agent CLIs, version managers |
-| `systemd` | `base` | systemd init system |
-| `dind` | `systemd` | Docker-in-Docker support |
 
 ### Image Tags
 
 Each release creates two tags:
 
 ```
-ghcr.io/gilmanlab/headjack:base           # Latest
-ghcr.io/gilmanlab/headjack:base-v1.0.0    # Versioned
+ghcr.io/gilmanlab/headjack:base          # Latest
+ghcr.io/gilmanlab/headjack:base-v1.0.0   # Versioned
 ```
 
 ### Build Features
@@ -174,8 +169,6 @@ ghcr.io/gilmanlab/headjack:base-v1.0.0    # Versioned
 
 Triggers on:
 - `images/base/v*` tags
-- `images/systemd/v*` tags
-- `images/dind/v*` tags
 
 Jobs:
 1. **lint**: Validates Dockerfiles with hadolint
@@ -194,9 +187,7 @@ Defines components, release types, and changelog configuration:
   "separate-pull-requests": true,
   "packages": {
     ".": { "component": "cli", "include-component-in-tag": false },
-    "images/base": { "component": "images/base", "include-component-in-tag": true },
-    "images/systemd": { "component": "images/systemd", "include-component-in-tag": true },
-    "images/dind": { "component": "images/dind", "include-component-in-tag": true }
+    "images/base": { "component": "images/base", "include-component-in-tag": true }
   }
 }
 ```
@@ -208,9 +199,7 @@ Tracks current versions for each component:
 ```json
 {
   ".": "1.0.0",
-  "images/base": "1.0.0",
-  "images/systemd": "1.0.0",
-  "images/dind": "1.0.0"
+  "images/base": "1.0.0"
 }
 ```
 
@@ -273,7 +262,7 @@ cosign verify-attestation ghcr.io/gilmanlab/headjack:base \
 
 Release-please uses file paths to attribute commits. Ensure your changes are in the correct directory:
 - CLI: Root Go files (`*.go`, `internal/`, `cmd/`)
-- Images: `images/base/`, `images/systemd/`, `images/dind/`
+- Images: `images/base/`
 
 ### Release PR Has Wrong Version
 

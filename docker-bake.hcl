@@ -5,8 +5,7 @@
 #   docker buildx bake base         # Build only base image
 #   docker buildx bake --push       # Build and push all images
 #
-# The images have dependencies: base -> systemd -> dind
-# Bake automatically builds dependencies first.
+# The base image provides all required functionality.
 
 variable "REGISTRY" {
   default = "ghcr.io"
@@ -22,7 +21,7 @@ variable "TAG" {
 
 # Target group to build all images
 group "default" {
-  targets = ["base", "systemd", "dind"]
+  targets = ["base"]
 }
 
 target "base" {
@@ -30,24 +29,4 @@ target "base" {
   dockerfile = "Dockerfile"
   tags       = ["${REGISTRY}/${REPOSITORY}:base", "${REGISTRY}/${REPOSITORY}:base-${TAG}"]
   platforms  = ["linux/amd64", "linux/arm64"]
-}
-
-target "systemd" {
-  context    = "images/systemd"
-  dockerfile = "Dockerfile"
-  tags       = ["${REGISTRY}/${REPOSITORY}:systemd", "${REGISTRY}/${REPOSITORY}:systemd-${TAG}"]
-  platforms  = ["linux/amd64", "linux/arm64"]
-  contexts = {
-    base = "target:base"
-  }
-}
-
-target "dind" {
-  context    = "images/dind"
-  dockerfile = "Dockerfile"
-  tags       = ["${REGISTRY}/${REPOSITORY}:dind", "${REGISTRY}/${REPOSITORY}:dind-${TAG}"]
-  platforms  = ["linux/amd64", "linux/arm64"]
-  contexts = {
-    systemd = "target:systemd"
-  }
 }

@@ -1,6 +1,4 @@
 {
   ".": "0.0.0",
-  "images/base": "0.0.0",
-  "images/systemd": "0.0.0",
-  "images/dind": "0.0.0"
+  "images/base": "0.0.0"
 }

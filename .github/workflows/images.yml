@@ -15,8 +15,6 @@ on:
       - '.github/workflows/images.yml'
     tags:
       - 'images/base/v*'
-      - 'images/systemd/v*'
-      - 'images/dind/v*'
 
 env:
   REGISTRY: ghcr.io
@@ -28,8 +26,6 @@ jobs:
       matrix:
         dockerfile:
           - images/base/Dockerfile
-          - images/systemd/Dockerfile
-          - images/dind/Dockerfile
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -61,7 +57,7 @@ jobs:
             echo "Building $VARIANT with version $VERSION"
           else
             # Build all variants on push to master or PR
-            echo 'variants=["base", "systemd", "dind"]' >> $GITHUB_OUTPUT
+            echo 'variants=["base"]' >> $GITHUB_OUTPUT
             echo "is_release=false" >> $GITHUB_OUTPUT
             echo "version=latest" >> $GITHUB_OUTPUT
             echo "Building all variants with latest tag"
@@ -80,8 +76,6 @@ jobs:
         variant: ${{ fromJson(needs.prepare.outputs.variants) }}
     outputs:
       base-digest: ${{ steps.digest.outputs.base }}
-      systemd-digest: ${{ steps.digest.outputs.systemd }}
-      dind-digest: ${{ steps.digest.outputs.dind }}
 
     steps:
       - name: Checkout repository
@@ -146,11 +140,7 @@ jobs:
         id: digest
         run: |
           # Get the digest from the build job output
-          case "${{ matrix.variant }}" in
-            base) echo "value=${{ needs.build.outputs.base-digest }}" >> $GITHUB_OUTPUT ;;
-            systemd) echo "value=${{ needs.build.outputs.systemd-digest }}" >> $GITHUB_OUTPUT ;;
-            dind) echo "value=${{ needs.build.outputs.dind-digest }}" >> $GITHUB_OUTPUT ;;
-          esac
+          echo "value=${{ needs.build.outputs.base-digest }}" >> $GITHUB_OUTPUT
 
       - name: Log in to Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3

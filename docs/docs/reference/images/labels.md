@@ -132,32 +132,6 @@ LABEL io.headjack.docker.flags="privileged=true"
 | `systemd` | `privileged=true cgroupns=host volume=/sys/fs/cgroup:/sys/fs/cgroup:rw` |
 | `dind` | Inherited from `systemd` |
 
----
-
-### io.headjack.apple.flags
-
-Reserved for Apple Containerization Framework-specific flags.
-
-| Property | Value |
-|----------|-------|
-| Key | `io.headjack.apple.flags` |
-| Value type | String (space-separated key=value pairs) |
-| Default | None |
-
-#### Description
-
-This label is reserved for specifying flags specific to the Apple Containerization Framework. It follows the same format as `io.headjack.podman.flags`.
-
-#### Example
-
-```dockerfile
-LABEL io.headjack.apple.flags="rosetta=true"
-```
-
-#### Usage in Official Images
-
-Not currently used in official images.
-
 ## Building Custom Images
 
 When building custom images that extend the official Headjack images, labels are not automatically inherited. You must explicitly set any labels you need.
@@ -203,7 +177,7 @@ LABEL io.headjack.init="/usr/local/bin/init.sh"
 
 ## Label Inspection
 
-You can inspect image labels using Docker, Podman, or Apple Container:
+You can inspect image labels using Docker or Podman:
 
 ```bash
 # Using Docker
@@ -211,9 +185,6 @@ docker inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Label
 
 # Using Podman
 podman inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Labels}}' | jq
-
-# Using Apple Container
-container inspect ghcr.io/gilmanlab/headjack:systemd --format='{{json .Config.Labels}}' | jq
 ```
 
 Example output:

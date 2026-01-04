@@ -13,8 +13,8 @@ ARG DOCKER_GPG_FINGERPRINT=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 ARG USERNAME=developer
 
 # =============================================================================
-# iptables-legacy Workaround (ADR-002)
-# Required for Docker-in-Docker in Apple Containerization Framework
+# iptables-legacy Workaround
+# Required for Docker-in-Docker in certain container environments
 # =============================================================================
 
 # hadolint ignore=DL3008

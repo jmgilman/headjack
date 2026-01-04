@@ -12,9 +12,9 @@ This guide is being written. Check back soon!
 
 ## Prerequisites
 
-- macOS or Linux (Apple Containerization requires macOS 26+)
+- macOS or Linux
 - Git
-- Container runtime (Docker, Podman, or Apple Container)
+- Container runtime (Docker or Podman)
 
 ## Installation Steps
 

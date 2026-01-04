@@ -34,7 +34,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 Before starting, ensure you have:
 
-- **macOS or Linux with a container runtime installed** - Headjack supports Docker (default), Podman, or Apple Container
+- **macOS or Linux with a container runtime installed** - Headjack supports Docker (default) or Podman
 - **Git installed** - Verify with `git --version`
 - **A Claude Pro/Max subscription OR an Anthropic API key** - For Claude Code authentication
 - **A git repository to work in** - Any project repository will work

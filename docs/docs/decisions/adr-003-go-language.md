@@ -69,7 +69,7 @@ Use **Go** as the implementation language for Headjack.
 
 - **Verbosity**: More boilerplate than scripting languages
 - **Error handling**: Explicit error checking adds code volume
-- **No Apple Containerization SDK**: Must shell out regardless (not a Go-specific limitation)
+- **No container CLI SDK**: Must shell out to Docker/Podman CLI (not a Go-specific limitation)
 
 ### Neutral
 

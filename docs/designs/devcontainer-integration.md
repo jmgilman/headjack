@@ -10,7 +10,7 @@ This document describes the design for integrating devcontainer support into Hea
 
 Headjack uses a layered architecture for container management:
 
-1. **Runtime Interface** (`internal/container/container.go`): Abstracts container operations (Run, Exec, Stop, etc.) across Docker, Podman, and Apple Containerization
+1. **Runtime Interface** (`internal/container/container.go`): Abstracts container operations (Run, Exec, Stop, etc.) across Docker and Podman
 2. **Instance Manager** (`internal/instance/manager.go`): Orchestrates instance lifecycle, creating worktrees, containers, and managing sessions
 3. **Image Labels**: Runtime configuration is extracted from OCI image labels (`io.headjack.init`, `io.headjack.podman.flags`, etc.)
 4. **Configuration Merging**: Flags from config files take precedence over image labels
@@ -83,9 +83,6 @@ The devcontainer CLI supports Docker and Podman via the `--docker-path` flag:
 |---------|-----------|-------|
 | Docker | ✅ | Native support |
 | Podman | ✅ | Via `--docker-path podman` |
-| Apple Containerization | ❌ | Not Docker-compatible |
-
-Attempting to use devcontainer mode with Apple Containerization will result in an error.
 
 ### RunConfig Extension
 
@@ -103,7 +100,7 @@ type RunConfig struct {
 }
 ```
 
-- Vanilla runtimes (Docker, Podman, Apple) ignore `WorkspaceFolder`
+- Vanilla runtimes (Docker, Podman) ignore `WorkspaceFolder`
 - `DevcontainerRuntime` uses `WorkspaceFolder` and ignores `Image`
 
 ### DevcontainerRuntime Implementation
@@ -237,11 +234,10 @@ This matches user expectations from VS Code, GitHub Codespaces, and DevPod.
 │  CLI Layer (cmd/run.go)                                         │
 │    │                                                            │
 │    ├── --image flag passed?                                     │
-│    │     └── Yes: Use vanilla runtime (Docker/Podman/Apple)     │
+│    │     └── Yes: Use vanilla runtime (Docker/Podman)           │
 │    │                                                            │
 │    └── devcontainer.json exists?                                │
-│          ├── Yes + Docker/Podman: Use DevcontainerRuntime       │
-│          ├── Yes + Apple: Error (not supported)                 │
+│          ├── Yes: Use DevcontainerRuntime                       │
 │          └── No: Use vanilla runtime with default image         │
 │                                                                 │
 │  Instance Manager receives containerRuntime interface           │

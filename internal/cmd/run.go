@@ -258,8 +258,6 @@ func formatInstanceNotRunningHint(cmd *cobra.Command, err *instance.NotRunningEr
 
 func runtimeLogsCommand(runtimeName, containerID string) string {
 	switch runtimeName {
-	case runtimeNameApple:
-		return "container logs " + containerID
 	case runtimeNameDocker:
 		return "docker logs " + containerID
 	default:
@@ -309,7 +307,6 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 // Devcontainer mode is used when:
 //   - No --base flag was explicitly passed (imageExplicit is false)
 //   - A devcontainer.json exists in the repo
-//   - The runtime is Docker or Podman (not Apple)
 func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) instance.CreateConfig {
 	cfg := instance.CreateConfig{
 		Branch: branch,
@@ -326,18 +323,11 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, image
 		return cfg
 	}
 
-	// Check runtime compatibility (devcontainer only works with Docker/Podman)
+	// Create devcontainer runtime wrapping the underlying runtime
 	runtimeName := runtimeNameDocker
 	if appCfg := ConfigFromContext(cmd.Context()); appCfg != nil && appCfg.Runtime.Name != "" {
 		runtimeName = appCfg.Runtime.Name
 	}
-
-	if runtimeName == runtimeNameApple {
-		fmt.Println("Warning: devcontainer.json detected but Apple runtime does not support devcontainers, using vanilla mode")
-		return cfg
-	}
-
-	// Create devcontainer runtime wrapping the underlying runtime
 	dcRuntime := createDevcontainerRuntime(cmd, runtimeName)
 	if dcRuntime == nil {
 		// Fall back to vanilla mode if we can't create the devcontainer runtime

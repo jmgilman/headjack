@@ -65,9 +65,7 @@ integration-test runtime="auto":
 
     # Determine runtime
     if [ "{{runtime}}" = "auto" ]; then
-        if command -v container &>/dev/null && [ "$(uname)" = "Darwin" ]; then
-            RUNTIME=apple
-        elif command -v docker &>/dev/null; then
+        if command -v docker &>/dev/null; then
             RUNTIME=docker
         elif command -v podman &>/dev/null; then
             RUNTIME=podman
@@ -92,10 +90,6 @@ integration-test-docker:
 integration-test-podman:
     just integration-test podman
 
-# Run integration tests with Apple Containerization (macOS only)
-integration-test-apple:
-    just integration-test apple
-
 # Run a specific integration test script by name
 integration-test-one script runtime="auto":
     #!/usr/bin/env bash
@@ -104,9 +98,7 @@ integration-test-one script runtime="auto":
     go build -o hjk .
 
     if [ "{{runtime}}" = "auto" ]; then
-        if command -v container &>/dev/null && [ "$(uname)" = "Darwin" ]; then
-            RUNTIME=apple
-        elif command -v docker &>/dev/null; then
+        if command -v docker &>/dev/null; then
             RUNTIME=docker
         elif command -v podman &>/dev/null; then
             RUNTIME=podman

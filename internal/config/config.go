@@ -43,7 +43,6 @@ var validAgents = map[string]bool{
 // validRuntimes contains the allowed runtime names (unexported).
 var validRuntimes = map[string]bool{
 	"podman": true,
-	"apple":  true,
 	"docker": true,
 }
 
@@ -81,7 +80,7 @@ type StorageConfig struct {
 
 // RuntimeConfig holds container runtime configuration.
 type RuntimeConfig struct {
-	Name  string         `mapstructure:"name" validate:"omitempty,oneof=podman apple docker"`
+	Name  string         `mapstructure:"name" validate:"omitempty,oneof=podman docker"`
 	Flags map[string]any `mapstructure:"flags"`
 }
 
@@ -220,7 +219,7 @@ func (l *Loader) Set(key, value string) error {
 	// Validate runtime name if setting runtime.name
 	if key == "runtime.name" && value != "" {
 		if !validRuntimes[value] {
-			return fmt.Errorf("%w: %s (valid: podman, apple, docker)", ErrInvalidRuntime, value)
+			return fmt.Errorf("%w: %s (valid: podman, docker)", ErrInvalidRuntime, value)
 		}
 	}
 
@@ -322,5 +321,5 @@ func IsValidRuntime(name string) bool {
 
 // ValidRuntimeNames returns the list of valid runtime names.
 func ValidRuntimeNames() []string {
-	return []string{"podman", "apple", "docker"}
+	return []string{"podman", "docker"}
 }

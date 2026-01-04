@@ -15,7 +15,7 @@ This tutorial takes approximately 30-40 minutes to complete.
 Before starting, ensure you have:
 
 - Completed the [Getting Started](./getting-started) tutorial
-- Docker, Podman, or Apple Container installed on your machine
+- Docker or Podman installed on your machine
 - Basic familiarity with Dockerfile syntax
 - A project with specific runtime requirements (Python version, Node.js packages, system tools, etc.)
 
@@ -183,7 +183,7 @@ podman build -t my-app-headjack:latest -f Dockerfile.headjack .
 ```
 
 :::note
-Build with the same container runtime that Headjack uses. Check your configuration with `hjk config` and look for `runtime.name`. Images built with one runtime (Docker, Podman, or Apple Container) are not automatically available to others unless pushed to a registry.
+Build with the same container runtime that Headjack uses. Check your configuration with `hjk config` and look for `runtime.name`. Images built with one runtime (Docker or Podman) are not automatically available to others unless pushed to a registry.
 :::
 
 The build takes several minutes as it compiles Python and Node.js. You will see output for each step:
@@ -282,7 +282,7 @@ hjk config default.base_image ghcr.io/your-org/my-app-headjack:latest
 
 ## Step 12: Build for Multiple Architectures
 
-If your team uses both Intel and Apple Silicon Macs, build a multi-architecture image:
+If your team uses both Intel and ARM Macs, build a multi-architecture image:
 
 ```bash
 docker buildx build \
@@ -292,7 +292,7 @@ docker buildx build \
     -f Dockerfile.headjack .
 ```
 
-This creates an image that works on both architectures. Docker, Podman, and Apple Container automatically pull the correct variant.
+This creates an image that works on both architectures. Docker and Podman automatically pull the correct variant.
 
 ## Complete Dockerfile
 

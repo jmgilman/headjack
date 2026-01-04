@@ -76,5 +76,5 @@ homebrew_casks:
     ids:
       - darwin
     caveats: |
-      Headjack requires a container runtime (Podman, Docker, or Apple Container).
+      Headjack requires a container runtime (Podman, Docker).
       Get started: hjk auth claude && hjk run feat/my-feature --agent claude "Your task"

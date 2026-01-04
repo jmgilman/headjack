@@ -23,7 +23,7 @@ var _ container.Runtime = &RuntimeMock{}
 //			BuildFunc: func(ctx context.Context, cfg *container.BuildConfig) error {
 //				panic("mock out the Build method")
 //			},
-//			ExecFunc: func(ctx context.Context, id string, cfg container.ExecConfig) error {
+//			ExecFunc: func(ctx context.Context, id string, cfg *container.ExecConfig) error {
 //				panic("mock out the Exec method")
 //			},
 //			ExecCommandFunc: func() []string {
@@ -58,7 +58,7 @@ type RuntimeMock struct {
 	BuildFunc func(ctx context.Context, cfg *container.BuildConfig) error
 
 	// ExecFunc mocks the Exec method.
-	ExecFunc func(ctx context.Context, id string, cfg container.ExecConfig) error
+	ExecFunc func(ctx context.Context, id string, cfg *container.ExecConfig) error
 
 	// ExecCommandFunc mocks the ExecCommand method.
 	ExecCommandFunc func() []string
@@ -97,7 +97,7 @@ type RuntimeMock struct {
 			// ID is the id argument value.
 			ID string
 			// Cfg is the cfg argument value.
-			Cfg container.ExecConfig
+			Cfg *container.ExecConfig
 		}
 		// ExecCommand holds details about calls to the ExecCommand method.
 		ExecCommand []struct {
@@ -193,14 +193,14 @@ func (mock *RuntimeMock) BuildCalls() []struct {
 }
 
 // Exec calls ExecFunc.
-func (mock *RuntimeMock) Exec(ctx context.Context, id string, cfg container.ExecConfig) error {
+func (mock *RuntimeMock) Exec(ctx context.Context, id string, cfg *container.ExecConfig) error {
 	if mock.ExecFunc == nil {
 		panic("RuntimeMock.ExecFunc: method is nil but Runtime.Exec was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
 		ID  string
-		Cfg container.ExecConfig
+		Cfg *container.ExecConfig
 	}{
 		Ctx: ctx,
 		ID:  id,
@@ -219,12 +219,12 @@ func (mock *RuntimeMock) Exec(ctx context.Context, id string, cfg container.Exec
 func (mock *RuntimeMock) ExecCalls() []struct {
 	Ctx context.Context
 	ID  string
-	Cfg container.ExecConfig
+	Cfg *container.ExecConfig
 } {
 	var calls []struct {
 		Ctx context.Context
 		ID  string
-		Cfg container.ExecConfig
+		Cfg *container.ExecConfig
 	}
 	mock.lockExec.RLock()
 	calls = mock.calls.Exec

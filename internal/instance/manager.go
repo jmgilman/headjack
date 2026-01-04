@@ -39,7 +39,7 @@ type catalogStore interface {
 // containerRuntime is the internal interface for container operations.
 type containerRuntime interface {
 	Run(ctx context.Context, cfg *container.RunConfig) (*container.Container, error)
-	Exec(ctx context.Context, id string, cfg container.ExecConfig) error
+	Exec(ctx context.Context, id string, cfg *container.ExecConfig) error
 	Stop(ctx context.Context, id string) error
 	Start(ctx context.Context, id string) error
 	Remove(ctx context.Context, id string) error
@@ -279,9 +279,11 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		return nil, fmt.Errorf("create container: %w", err)
 	}
 
-	// Update catalog with container info
+	// Update catalog with container info (including devcontainer-specific fields if present)
 	entry.ContainerID = c.ID
 	entry.Status = catalog.StatusRunning
+	entry.RemoteUser = c.RemoteUser
+	entry.RemoteWorkdir = c.RemoteWorkspaceFolder
 	if updateErr := m.catalog.Update(ctx, &entry); updateErr != nil {
 		// Cleanup container - use retry logic in case of transient issues
 		if stopErr := m.stopContainerWithRetry(ctx, c.ID); stopErr != nil && stopErr != container.ErrNotFound {
@@ -722,12 +724,19 @@ func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error
 		cmd = []string{"/bin/bash"}
 	}
 
-	// Execute command
-	return m.runtime.Exec(ctx, entry.ContainerID, container.ExecConfig{
+	// Determine workdir: use explicit config, then devcontainer remote workdir, then default
+	workdir := cfg.Workdir
+	if workdir == "" && entry.RemoteWorkdir != "" {
+		workdir = entry.RemoteWorkdir
+	}
+
+	// Execute command (use RemoteUser for devcontainer instances)
+	return m.runtime.Exec(ctx, entry.ContainerID, &container.ExecConfig{
 		Command:     cmd,
 		Interactive: cfg.Interactive,
-		Workdir:     cfg.Workdir,
+		Workdir:     workdir,
 		Env:         cfg.Env,
+		User:        entry.RemoteUser,
 	})
 }
 
@@ -869,13 +878,23 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 	}
 
 	// Run agent-specific setup before starting the session
-	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType, cfg.Env, cfg.RequiresAgentSetup); setupErr != nil {
+	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType, cfg.Env, cfg.RequiresAgentSetup, entry.RemoteUser); setupErr != nil {
 		return nil, fmt.Errorf("agent setup: %w", setupErr)
+	}
+
+	// Determine workdir: use devcontainer remote workdir if set, otherwise default to /workspace
+	workdir := "/workspace"
+	if entry.RemoteWorkdir != "" {
+		workdir = entry.RemoteWorkdir
 	}
 
 	// Build the command to execute inside the container
 	// The multiplexer runs on the host, so we wrap the command with the runtime's exec command
-	execCmd := append(m.runtime.ExecCommand(), "-it", "-w", "/workspace")
+	execCmd := append(m.runtime.ExecCommand(), "-it")
+	if entry.RemoteUser != "" {
+		execCmd = append(execCmd, "-u", entry.RemoteUser)
+	}
+	execCmd = append(execCmd, "-w", workdir)
 	for _, e := range cfg.Env {
 		execCmd = append(execCmd, "-e", e)
 	}
@@ -935,15 +954,17 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 // For Claude, this creates the config file needed to skip onboarding.
 // For Gemini/Codex with subscription auth, this writes OAuth credentials to file locations.
 // API key auth skips file setup since credentials are passed via environment variables.
-func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType, env []string, requiresSetup bool) error {
+// The user parameter specifies which user to run setup as (for devcontainer instances).
+func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType, env []string, requiresSetup bool, user string) error {
 	switch sessionType {
 	case catalog.SessionTypeClaude:
 		// Always create ~/.claude.json with hasCompletedOnboarding to skip interactive setup.
 		// This is required for both OAuth token and API key authentication in headless environments.
 		// See: https://github.com/anthropics/claude-code/issues/8938
 		setupCmd := `mkdir -p ~/.claude && echo '{"hasCompletedOnboarding":true}' > ~/.claude.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
+			User:    user,
 		})
 
 	case catalog.SessionTypeGemini:
@@ -958,9 +979,10 @@ func (m *Manager) runAgentSetup(ctx context.Context, containerID string, session
 echo "$GEMINI_OAUTH_CREDS" | jq -r '.oauth_creds' > ~/.gemini/oauth_creds.json && \
 echo "$GEMINI_OAUTH_CREDS" | jq -r '.google_accounts' > ~/.gemini/google_accounts.json && \
 echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/settings.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
 			Env:     env,
+			User:    user,
 		})
 
 	case catalog.SessionTypeCodex:
@@ -971,9 +993,10 @@ echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/setti
 		// Write Codex auth.json from env var for subscription auth.
 		// CODEX_AUTH_JSON contains the contents of ~/.codex/auth.json.
 		setupCmd := `mkdir -p ~/.codex && echo "$CODEX_AUTH_JSON" > ~/.codex/auth.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
 			Env:     env,
+			User:    user,
 		})
 
 	default:

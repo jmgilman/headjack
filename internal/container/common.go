@@ -75,7 +75,7 @@ func (r *baseRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, erro
 }
 
 // Exec executes a command in a running container.
-func (r *baseRuntime) Exec(ctx context.Context, id string, cfg ExecConfig) error {
+func (r *baseRuntime) Exec(ctx context.Context, id string, cfg *ExecConfig) error {
 	// Verify container exists and is running
 	container, err := r.Get(ctx, id)
 	if err != nil {
@@ -311,11 +311,15 @@ func buildRunArgs(cfg *RunConfig) []string {
 }
 
 // buildExecArgs constructs the common container exec arguments.
-func buildExecArgs(id string, cfg ExecConfig) []string {
+func buildExecArgs(id string, cfg *ExecConfig) []string {
 	args := []string{"exec"}
 
 	if cfg.Interactive {
 		args = append(args, "-it")
+	}
+
+	if cfg.User != "" {
+		args = append(args, "-u", cfg.User)
 	}
 
 	if cfg.Workdir != "" {

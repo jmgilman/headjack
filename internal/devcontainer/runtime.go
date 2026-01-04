@@ -83,16 +83,18 @@ func (r *Runtime) Run(ctx context.Context, cfg *container.RunConfig) (*container
 		return nil, fmt.Errorf("devcontainer up failed: %s", upRes.Outcome)
 	}
 
-	// Return container info
+	// Return container info with devcontainer-specific fields
 	return &container.Container{
-		ID:     upRes.ContainerID,
-		Name:   cfg.Name,
-		Status: container.StatusRunning,
+		ID:                    upRes.ContainerID,
+		Name:                  cfg.Name,
+		Status:                container.StatusRunning,
+		RemoteUser:            upRes.RemoteUser,
+		RemoteWorkspaceFolder: upRes.RemoteWorkspaceFolder,
 	}, nil
 }
 
 // Exec executes a command using devcontainer exec.
-func (r *Runtime) Exec(ctx context.Context, id string, cfg container.ExecConfig) error {
+func (r *Runtime) Exec(ctx context.Context, id string, cfg *container.ExecConfig) error {
 	// Verify container exists and is running via underlying runtime
 	c, err := r.underlying.Get(ctx, id)
 	if err != nil {
@@ -108,8 +110,27 @@ func (r *Runtime) Exec(ctx context.Context, id string, cfg container.ExecConfig)
 		"--docker-path", r.dockerPath,
 	}
 
+	// Add user if specified
+	if cfg.User != "" {
+		args = append(args, "--remote-user", cfg.User)
+	}
+
+	// Add environment variables
+	for _, env := range cfg.Env {
+		args = append(args, "--remote-env", env)
+	}
+
+	// Handle workdir by wrapping command with cd if needed
+	// The devcontainer CLI doesn't have a direct --remote-cwd flag
+	cmd := cfg.Command
+	if cfg.Workdir != "" && len(cmd) > 0 {
+		// Wrap command to change directory first, with proper shell quoting
+		shellCmd := fmt.Sprintf("cd %s && exec \"$@\"", shellQuote(cfg.Workdir))
+		cmd = append([]string{"sh", "-c", shellCmd, "--"}, cmd...)
+	}
+
 	// Add command
-	args = append(args, cfg.Command...)
+	args = append(args, cmd...)
 
 	if cfg.Interactive {
 		return r.execInteractive(ctx, args)
@@ -207,4 +228,12 @@ func (r *Runtime) Build(ctx context.Context, cfg *container.BuildConfig) error {
 // ExecCommand returns the underlying runtime's exec command.
 func (r *Runtime) ExecCommand() []string {
 	return r.underlying.ExecCommand()
+}
+
+// shellQuote quotes a string for safe use in a shell command.
+// It wraps the string in single quotes and escapes any embedded single quotes.
+func shellQuote(s string) string {
+	// Replace each ' with '\'' (end quote, escaped quote, start quote)
+	escaped := strings.ReplaceAll(s, "'", "'\\''")
+	return "'" + escaped + "'"
 }

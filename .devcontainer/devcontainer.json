@@ -1,6 +1,6 @@
 {
   "name": "Headjack Development",
-  "image": "mcr.microsoft.com/devcontainers/go:1.23-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/go:1.25-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
@@ -23,7 +23,9 @@
       ],
       "settings": {
         "go.lintTool": "golangci-lint",
-        "go.lintFlags": ["--fast"],
+        "go.lintFlags": [
+          "--fast"
+        ],
         "editor.formatOnSave": true,
         "[go]": {
           "editor.defaultFormatter": "golang.go"

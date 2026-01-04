@@ -113,7 +113,7 @@ func TestRuntime_Exec(t *testing.T) {
 		}
 
 		runtime := NewRuntime(mockRT, mockExec, "/usr/bin/devcontainer", "docker")
-		err := runtime.Exec(ctx, "abc123", container.ExecConfig{
+		err := runtime.Exec(ctx, "abc123", &container.ExecConfig{
 			Command: []string{"bash"},
 		})
 
@@ -129,7 +129,7 @@ func TestRuntime_Exec(t *testing.T) {
 		mockExec := &execmocks.ExecutorMock{}
 
 		runtime := NewRuntime(mockRT, mockExec, "/usr/bin/devcontainer", "docker")
-		err := runtime.Exec(ctx, "missing", container.ExecConfig{
+		err := runtime.Exec(ctx, "missing", &container.ExecConfig{
 			Command: []string{"bash"},
 		})
 
@@ -148,7 +148,7 @@ func TestRuntime_Exec(t *testing.T) {
 		mockExec := &execmocks.ExecutorMock{}
 
 		runtime := NewRuntime(mockRT, mockExec, "/usr/bin/devcontainer", "docker")
-		err := runtime.Exec(ctx, "abc123", container.ExecConfig{
+		err := runtime.Exec(ctx, "abc123", &container.ExecConfig{
 			Command: []string{"bash"},
 		})
 

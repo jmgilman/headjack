@@ -21,7 +21,6 @@ import (
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
-	"github.com/jmgilman/headjack/internal/registry"
 )
 
 // baseDeps lists the external binaries that must always be available.
@@ -176,19 +175,16 @@ func initManager() error {
 	// Use tmux as the terminal multiplexer
 	mux := multiplexer.NewTmux(executor)
 
-	// Create registry client for fetching image metadata
-	regClient := registry.NewClient(registry.ClientConfig{})
-
 	// Map runtime name to RuntimeType
 	runtimeType := runtimeNameToType(runtimeName)
 
-	// Parse config flags for merging with image label flags
+	// Parse config flags
 	configFlags, err := getConfigFlags()
 	if err != nil {
 		return err
 	}
 
-	mgr = instance.NewManager(store, runtime, opener, mux, regClient, instance.ManagerConfig{
+	mgr = instance.NewManager(store, runtime, opener, mux, instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
 		LogsDir:      logsDir,
 		RuntimeType:  runtimeType,

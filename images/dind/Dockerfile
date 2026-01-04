@@ -49,6 +49,9 @@ RUN keyring=/usr/share/keyrings/docker-archive-keyring.gpg && \
 # Docker Configuration
 # =============================================================================
 
+# Docker-in-Docker requires a real filesystem for overlayfs snapshots.
+VOLUME ["/var/lib/docker", "/var/lib/containerd"]
+
 # Add developer user to docker group and enable Docker service
 RUN usermod -aG docker "$USERNAME" && \
     systemctl enable docker

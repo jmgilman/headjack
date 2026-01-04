@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // Flags represents runtime flags as a key-value map.
@@ -50,61 +49,6 @@ func FromConfig(cfg map[string]any) (Flags, error) {
 			result[k] = strs
 		default:
 			return nil, fmt.Errorf("%w: %s has unsupported type %T", ErrInvalidFlagValue, k, v)
-		}
-	}
-	return result, nil
-}
-
-// FromLabel parses a space-separated string of key=value pairs into Flags.
-// Format: "key1=value1 key2=value2 boolkey=true barekey"
-//
-// Rules:
-//   - "key=value" → string value
-//   - "key=true" or "key=false" → bool value
-//   - "key" (bare, no =) → bool true
-//   - Repeated keys become []string (e.g., "vol=/a vol=/b" → {"vol": ["/a", "/b"]})
-//   - Values containing = are handled correctly (splits on first = only)
-func FromLabel(label string) (Flags, error) {
-	result := make(Flags)
-	if label == "" {
-		return result, nil
-	}
-
-	for _, part := range strings.Fields(label) {
-		key, value, hasEquals := strings.Cut(part, "=")
-		if key == "" {
-			continue // Skip empty keys
-		}
-
-		if !hasEquals {
-			// Bare key treated as boolean true (e.g., "privileged")
-			result[key] = true
-			continue
-		}
-
-		// Check for boolean string values
-		switch strings.ToLower(value) {
-		case "true":
-			result[key] = true
-			continue
-		case "false":
-			result[key] = false
-			continue
-		}
-
-		// Handle repeated keys by converting to array
-		if existing, ok := result[key]; ok {
-			switch e := existing.(type) {
-			case string:
-				result[key] = []string{e, value}
-			case []string:
-				result[key] = append(e, value)
-			default:
-				// Overwrite non-string values (e.g., bool) with the new string
-				result[key] = value
-			}
-		} else {
-			result[key] = value
 		}
 	}
 	return result, nil

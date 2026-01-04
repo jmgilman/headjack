@@ -118,7 +118,6 @@ const sidebars: SidebarsConfig = {
           },
           items: [
             'reference/images/overview',
-            'reference/images/labels',
           ],
         },
       ],

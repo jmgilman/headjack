@@ -101,100 +101,6 @@ func TestFromConfig(t *testing.T) {
 	})
 }
 
-func TestFromLabel(t *testing.T) {
-	t.Run("empty string returns empty flags", func(t *testing.T) {
-		result, err := FromLabel("")
-
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
-
-	t.Run("simple key=value pairs", func(t *testing.T) {
-		result, err := FromLabel("memory=2g systemd=always")
-
-		require.NoError(t, err)
-		assert.Equal(t, "2g", result["memory"])
-		assert.Equal(t, "always", result["systemd"])
-	})
-
-	t.Run("boolean true value", func(t *testing.T) {
-		result, err := FromLabel("privileged=true")
-
-		require.NoError(t, err)
-		assert.Equal(t, true, result["privileged"])
-	})
-
-	t.Run("boolean false value", func(t *testing.T) {
-		result, err := FromLabel("debug=false")
-
-		require.NoError(t, err)
-		assert.Equal(t, false, result["debug"])
-	})
-
-	t.Run("boolean case insensitive", func(t *testing.T) {
-		result, err := FromLabel("a=TRUE b=False c=TRUE")
-
-		require.NoError(t, err)
-		assert.Equal(t, true, result["a"])
-		assert.Equal(t, false, result["b"])
-		assert.Equal(t, true, result["c"])
-	})
-
-	t.Run("bare key as boolean true", func(t *testing.T) {
-		result, err := FromLabel("privileged")
-
-		require.NoError(t, err)
-		assert.Equal(t, true, result["privileged"])
-	})
-
-	t.Run("repeated keys become array", func(t *testing.T) {
-		result, err := FromLabel("volume=/a:/b volume=/c:/d")
-
-		require.NoError(t, err)
-		assert.Equal(t, []string{"/a:/b", "/c:/d"}, result["volume"])
-	})
-
-	t.Run("three repeated keys", func(t *testing.T) {
-		result, err := FromLabel("env=A=1 env=B=2 env=C=3")
-
-		require.NoError(t, err)
-		assert.Equal(t, []string{"A=1", "B=2", "C=3"}, result["env"])
-	})
-
-	t.Run("value containing equals sign", func(t *testing.T) {
-		result, err := FromLabel("env=FOO=bar")
-
-		require.NoError(t, err)
-		assert.Equal(t, "FOO=bar", result["env"])
-	})
-
-	t.Run("mixed bare keys and key=value", func(t *testing.T) {
-		result, err := FromLabel("privileged systemd=always memory=2g")
-
-		require.NoError(t, err)
-		assert.Equal(t, true, result["privileged"])
-		assert.Equal(t, "always", result["systemd"])
-		assert.Equal(t, "2g", result["memory"])
-	})
-
-	t.Run("whitespace handling", func(t *testing.T) {
-		result, err := FromLabel("  memory=2g   systemd=always  ")
-
-		require.NoError(t, err)
-		assert.Equal(t, "2g", result["memory"])
-		assert.Equal(t, "always", result["systemd"])
-	})
-
-	t.Run("repeated key overwrites bool with string array", func(t *testing.T) {
-		// First occurrence is bool, second is string - should become string
-		result, err := FromLabel("flag=true flag=value")
-
-		require.NoError(t, err)
-		// The bool is overwritten by the string value
-		assert.Equal(t, "value", result["flag"])
-	})
-}
-
 func TestMerge(t *testing.T) {
 	t.Run("nil inputs return empty flags", func(t *testing.T) {
 		result := Merge(nil, nil)
@@ -337,20 +243,6 @@ func TestToArgs(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
-	t.Run("label to flags to args", func(t *testing.T) {
-		label := "systemd=always privileged=true volume=/a:/b volume=/c:/d"
-
-		flags, err := FromLabel(label)
-		require.NoError(t, err)
-
-		args := ToArgs(flags)
-
-		assert.Contains(t, args, "--systemd=always")
-		assert.Contains(t, args, "--privileged")
-		assert.Contains(t, args, "--volume=/a:/b")
-		assert.Contains(t, args, "--volume=/c:/d")
-	})
-
 	t.Run("config to flags to args", func(t *testing.T) {
 		cfg := map[string]any{
 			"memory":     "2g",
@@ -369,12 +261,12 @@ func TestRoundTrip(t *testing.T) {
 	})
 
 	t.Run("merge then to args", func(t *testing.T) {
-		imageFlags, err := FromLabel("systemd=always memory=1g")
+		baseFlags, err := FromConfig(map[string]any{"systemd": "always", "memory": "1g"})
 		require.NoError(t, err)
 		configFlags, err := FromConfig(map[string]any{"memory": "4g", "privileged": true})
 		require.NoError(t, err)
 
-		merged := Merge(imageFlags, configFlags)
+		merged := Merge(baseFlags, configFlags)
 		args := ToArgs(merged)
 
 		// Config should win for memory

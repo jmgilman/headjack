@@ -113,7 +113,3 @@ For complete image specifications, see the Dockerfiles in the repository:
 - [Base Dockerfile](https://github.com/GilmanLab/headjack/blob/master/images/base/Dockerfile)
 - [Systemd Dockerfile](https://github.com/GilmanLab/headjack/blob/master/images/systemd/Dockerfile)
 - [Docker-in-Docker Dockerfile](https://github.com/GilmanLab/headjack/blob/master/images/dind/Dockerfile)
-
-## See Also
-
-- [OCI Labels](labels.md) - Labels for custom image configuration

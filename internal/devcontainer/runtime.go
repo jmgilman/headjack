@@ -4,6 +4,7 @@ package devcontainer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -48,7 +49,7 @@ type upResult struct {
 // Run creates a container using devcontainer up.
 func (r *Runtime) Run(ctx context.Context, cfg *container.RunConfig) (*container.Container, error) {
 	if cfg.WorkspaceFolder == "" {
-		return nil, fmt.Errorf("WorkspaceFolder is required for devcontainer runtime")
+		return nil, errors.New("WorkspaceFolder is required for devcontainer runtime")
 	}
 
 	args := []string{

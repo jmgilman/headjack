@@ -13,10 +13,10 @@ func TestDetect(t *testing.T) {
 	t.Run("finds devcontainer.json in .devcontainer directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		devcontainerDir := filepath.Join(tmpDir, ".devcontainer")
-		require.NoError(t, os.MkdirAll(devcontainerDir, 0755))
+		require.NoError(t, os.MkdirAll(devcontainerDir, 0o750))
 
 		configPath := filepath.Join(devcontainerDir, "devcontainer.json")
-		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0o600))
 
 		result := Detect(tmpDir)
 		assert.Equal(t, configPath, result)
@@ -25,7 +25,7 @@ func TestDetect(t *testing.T) {
 	t.Run("finds devcontainer.json in root directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configPath := filepath.Join(tmpDir, ".devcontainer.json")
-		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0o600))
 
 		result := Detect(tmpDir)
 		assert.Equal(t, configPath, result)
@@ -36,12 +36,12 @@ func TestDetect(t *testing.T) {
 
 		// Create both files
 		devcontainerDir := filepath.Join(tmpDir, ".devcontainer")
-		require.NoError(t, os.MkdirAll(devcontainerDir, 0755))
+		require.NoError(t, os.MkdirAll(devcontainerDir, 0o750))
 		preferredPath := filepath.Join(devcontainerDir, "devcontainer.json")
-		require.NoError(t, os.WriteFile(preferredPath, []byte(`{"name": "preferred"}`), 0644))
+		require.NoError(t, os.WriteFile(preferredPath, []byte(`{"name": "preferred"}`), 0o600))
 
 		rootPath := filepath.Join(tmpDir, ".devcontainer.json")
-		require.NoError(t, os.WriteFile(rootPath, []byte(`{"name": "root"}`), 0644))
+		require.NoError(t, os.WriteFile(rootPath, []byte(`{"name": "root"}`), 0o600))
 
 		result := Detect(tmpDir)
 		assert.Equal(t, preferredPath, result)
@@ -64,10 +64,10 @@ func TestHasConfig(t *testing.T) {
 	t.Run("returns true when config exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		devcontainerDir := filepath.Join(tmpDir, ".devcontainer")
-		require.NoError(t, os.MkdirAll(devcontainerDir, 0755))
+		require.NoError(t, os.MkdirAll(devcontainerDir, 0o750))
 
 		configPath := filepath.Join(devcontainerDir, "devcontainer.json")
-		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(`{"name": "test"}`), 0o600))
 
 		assert.True(t, HasConfig(tmpDir))
 	})

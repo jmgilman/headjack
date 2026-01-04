@@ -108,7 +108,10 @@ func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, 
 	}
 
 	// Type assert to get public runtime interface (all container.Runtime implementations satisfy containerRuntime)
-	publicRT, _ := runtime.(container.Runtime)
+	var publicRT container.Runtime
+	if rt, ok := runtime.(container.Runtime); ok {
+		publicRT = rt
+	}
 
 	return &Manager{
 		catalog:      store,

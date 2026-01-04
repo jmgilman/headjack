@@ -217,6 +217,13 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		if errors.Is(err, instance.ErrSessionExists) {
 			return fmt.Errorf("session %q already exists in instance %s", flags.sessionName, inst.ID)
 		}
+		var notRunningErr *instance.NotRunningError
+		if errors.As(err, &notRunningErr) {
+			hint := formatInstanceNotRunningHint(cmd, notRunningErr)
+			if hint != "" {
+				return fmt.Errorf("create session: %w\nhint: %s", err, hint)
+			}
+		}
 		return fmt.Errorf("create session: %w", err)
 	}
 
@@ -226,6 +233,32 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return mgr.AttachSession(cmd.Context(), inst.ID, session.Name)
+}
+
+func formatInstanceNotRunningHint(cmd *cobra.Command, err *instance.NotRunningError) string {
+	if err == nil || err.ContainerID == "" {
+		return ""
+	}
+	runtimeName := runtimeNameDocker
+	if cfg := ConfigFromContext(cmd.Context()); cfg != nil && cfg.Runtime.Name != "" {
+		runtimeName = cfg.Runtime.Name
+	}
+	logsCmd := runtimeLogsCommand(runtimeName, err.ContainerID)
+	if logsCmd == "" {
+		return fmt.Sprintf("container %s is %s", err.ContainerID, err.Status)
+	}
+	return fmt.Sprintf("container %s is %s; check logs with `%s`", err.ContainerID, err.Status, logsCmd)
+}
+
+func runtimeLogsCommand(runtimeName, containerID string) string {
+	switch runtimeName {
+	case runtimeNameApple:
+		return "container logs " + containerID
+	case runtimeNameDocker:
+		return "docker logs " + containerID
+	default:
+		return "podman logs " + containerID
+	}
 }
 
 // getOrCreateInstance retrieves an existing instance or creates a new one.

@@ -3,6 +3,7 @@ package instance
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jmgilman/headjack/internal/container"
@@ -17,6 +18,21 @@ var (
 	ErrInstanceNotRunning  = errors.New("instance is not running")
 	ErrNoSessionsAvailable = errors.New("no sessions available")
 )
+
+// NotRunningError describes an instance whose container is not running.
+type NotRunningError struct {
+	InstanceID  string
+	ContainerID string
+	Status      container.Status
+}
+
+func (e *NotRunningError) Error() string {
+	return fmt.Sprintf("instance is not running (container %s status: %s)", e.ContainerID, e.Status)
+}
+
+func (e *NotRunningError) Unwrap() error {
+	return ErrInstanceNotRunning
+}
 
 // Status represents the instance lifecycle state.
 type Status string

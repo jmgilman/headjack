@@ -41,6 +41,10 @@ type Container struct {
 	Image     string
 	Status    Status
 	CreatedAt time.Time
+
+	// Devcontainer-specific fields (populated by devcontainer runtime)
+	RemoteUser            string // User for exec operations (e.g., "vscode")
+	RemoteWorkspaceFolder string // Working directory inside container (e.g., "/workspaces/project")
 }
 
 // Mount defines a host-to-container volume mount.
@@ -52,12 +56,13 @@ type Mount struct {
 
 // RunConfig configures container creation.
 type RunConfig struct {
-	Name   string   // Container name (required)
-	Image  string   // OCI image reference (required)
-	Mounts []Mount  // Volume mounts
-	Env    []string // Environment variables (KEY=VALUE format)
-	Init   string   // Init command to run as PID 1 (default: "sleep infinity")
-	Flags  []string // Runtime-specific flags (e.g., "--systemd=always" for Podman)
+	Name            string   // Container name (required)
+	Image           string   // OCI image reference (required for vanilla runtimes)
+	Mounts          []Mount  // Volume mounts
+	Env             []string // Environment variables (KEY=VALUE format)
+	Init            string   // Init command to run as PID 1 (default: "sleep infinity")
+	Flags           []string // Runtime-specific flags (e.g., "--systemd=always" for Podman)
+	WorkspaceFolder string   // For devcontainer: path to folder with devcontainer.json
 }
 
 // ExecConfig configures command execution in a container.
@@ -66,6 +71,7 @@ type ExecConfig struct {
 	Env         []string // Additional environment variables
 	Interactive bool     // If true, sets up TTY with raw mode and signal forwarding
 	Workdir     string   // Working directory (empty = container default)
+	User        string   // User to run as (empty = container default)
 }
 
 // BuildConfig configures image builds.
@@ -94,7 +100,7 @@ type Runtime interface {
 	// Blocks until the command exits.
 	// Returns ErrNotFound if container doesn't exist.
 	// Returns ErrNotRunning if container is stopped.
-	Exec(ctx context.Context, id string, cfg ExecConfig) error
+	Exec(ctx context.Context, id string, cfg *ExecConfig) error
 
 	// Stop stops a running container gracefully.
 	// No-op if already stopped.

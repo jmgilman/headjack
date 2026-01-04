@@ -14,6 +14,7 @@ import (
 
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/container"
+	"github.com/jmgilman/headjack/internal/exec"
 	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/logging"
@@ -38,7 +39,7 @@ type catalogStore interface {
 // containerRuntime is the internal interface for container operations.
 type containerRuntime interface {
 	Run(ctx context.Context, cfg *container.RunConfig) (*container.Container, error)
-	Exec(ctx context.Context, id string, cfg container.ExecConfig) error
+	Exec(ctx context.Context, id string, cfg *container.ExecConfig) error
 	Stop(ctx context.Context, id string) error
 	Start(ctx context.Context, id string) error
 	Remove(ctx context.Context, id string) error
@@ -77,16 +78,19 @@ const (
 
 // ManagerConfig configures the Manager.
 type ManagerConfig struct {
-	WorktreesDir string      // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
-	LogsDir      string      // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
-	RuntimeType  RuntimeType // Container runtime type (docker, podman, or apple)
-	ConfigFlags  flags.Flags // Flags from config file (take precedence over image labels)
+	WorktreesDir string        // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
+	LogsDir      string        // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
+	RuntimeType  RuntimeType   // Container runtime type (docker, podman, or apple)
+	ConfigFlags  flags.Flags   // Flags from config file (take precedence over image labels)
+	Executor     exec.Executor // Command executor (for devcontainer runtime creation)
 }
 
 // Manager orchestrates instance lifecycle operations.
 type Manager struct {
 	catalog      catalogStore
 	runtime      containerRuntime
+	publicRT     container.Runtime // Public runtime interface (same as runtime, exposed for devcontainer)
+	executor     exec.Executor
 	git          gitOpener
 	mux          sessionMultiplexer
 	registry     registryClient
@@ -103,9 +107,17 @@ func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, 
 		runtimeType = RuntimeDocker
 	}
 
+	// Type assert to get public runtime interface (all container.Runtime implementations satisfy containerRuntime)
+	var publicRT container.Runtime
+	if rt, ok := runtime.(container.Runtime); ok {
+		publicRT = rt
+	}
+
 	return &Manager{
 		catalog:      store,
 		runtime:      runtime,
+		publicRT:     publicRT,
+		executor:     cfg.Executor,
 		git:          opener,
 		mux:          mux,
 		registry:     reg,
@@ -114,6 +126,18 @@ func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, 
 		runtimeType:  runtimeType,
 		configFlags:  cfg.ConfigFlags,
 	}
+}
+
+// Runtime returns the underlying container runtime.
+// This is used by the devcontainer runtime to delegate lifecycle operations.
+func (m *Manager) Runtime() container.Runtime {
+	return m.publicRT
+}
+
+// Executor returns the command executor.
+// This is used by the devcontainer runtime to execute CLI commands.
+func (m *Manager) Executor() exec.Executor {
+	return m.executor
 }
 
 // imageRuntimeConfig holds image-specific runtime configuration extracted from labels.
@@ -237,22 +261,14 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		return nil, fmt.Errorf("create worktree: %w", wtErr)
 	}
 
-	// Fetch image metadata to get runtime configuration from labels
-	imgCfg := m.getImageRuntimeConfig(ctx, cfg.Image)
+	// Select runtime: use provided override or default to manager's runtime
+	runtime := m.selectRuntime(cfg.Runtime)
 
-	// Merge flags: config takes precedence over image labels
-	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+	// Build container run config based on mode (devcontainer vs vanilla)
+	runCfg := m.buildRunConfig(ctx, cfg, containerName, worktreePath)
 
 	// Create container
-	c, err := m.runtime.Run(ctx, &container.RunConfig{
-		Name:  containerName,
-		Image: cfg.Image,
-		Mounts: []container.Mount{
-			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
-		},
-		Init:  imgCfg.Init,
-		Flags: flags.ToArgs(mergedFlags),
-	})
+	c, err := runtime.Run(ctx, runCfg)
 	if err != nil {
 		// Cleanup worktree on container failure
 		if wtErr := repo.RemoveWorktree(ctx, worktreePath); wtErr != nil {
@@ -263,9 +279,11 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		return nil, fmt.Errorf("create container: %w", err)
 	}
 
-	// Update catalog with container info
+	// Update catalog with container info (including devcontainer-specific fields if present)
 	entry.ContainerID = c.ID
 	entry.Status = catalog.StatusRunning
+	entry.RemoteUser = c.RemoteUser
+	entry.RemoteWorkdir = c.RemoteWorkspaceFolder
 	if updateErr := m.catalog.Update(ctx, &entry); updateErr != nil {
 		// Cleanup container - use retry logic in case of transient issues
 		if stopErr := m.stopContainerWithRetry(ctx, c.ID); stopErr != nil && stopErr != container.ErrNotFound {
@@ -273,7 +291,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 			cleanup()
 			return nil, fmt.Errorf("update catalog entry: %w (additionally, failed to stop container: %v)", updateErr, stopErr)
 		}
-		if removeErr := m.runtime.Remove(ctx, c.ID); removeErr != nil && removeErr != container.ErrNotFound {
+		if removeErr := runtime.Remove(ctx, c.ID); removeErr != nil && removeErr != container.ErrNotFound {
 			cleanup()
 			return nil, fmt.Errorf("update catalog entry: %w (additionally, failed to remove container: %v)", updateErr, removeErr)
 		}
@@ -297,6 +315,44 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		CreatedAt:   entry.CreatedAt,
 		Status:      StatusRunning,
 	}, nil
+}
+
+// selectRuntime returns the provided runtime override if set, otherwise the manager's default.
+func (m *Manager) selectRuntime(override containerRuntime) containerRuntime {
+	if override != nil {
+		return override
+	}
+	return m.runtime
+}
+
+// buildRunConfig creates a container.RunConfig based on the creation mode.
+// For devcontainer mode (WorkspaceFolder set), it configures for devcontainer CLI.
+// For vanilla mode, it fetches image metadata and merges flags.
+func (m *Manager) buildRunConfig(ctx context.Context, cfg CreateConfig, containerName, worktreePath string) *container.RunConfig {
+	// Devcontainer mode: minimal config, devcontainer CLI handles the rest
+	if cfg.WorkspaceFolder != "" {
+		return &container.RunConfig{
+			Name:            containerName,
+			WorkspaceFolder: cfg.WorkspaceFolder,
+			Mounts: []container.Mount{
+				{Source: worktreePath, Target: "/workspace", ReadOnly: false},
+			},
+		}
+	}
+
+	// Vanilla mode: fetch image metadata and merge flags
+	imgCfg := m.getImageRuntimeConfig(ctx, cfg.Image)
+	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+
+	return &container.RunConfig{
+		Name:  containerName,
+		Image: cfg.Image,
+		Mounts: []container.Mount{
+			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
+		},
+		Init:  imgCfg.Init,
+		Flags: flags.ToArgs(mergedFlags),
+	}
 }
 
 // Get retrieves an instance by ID, including live container status.
@@ -668,12 +724,19 @@ func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error
 		cmd = []string{"/bin/bash"}
 	}
 
-	// Execute command
-	return m.runtime.Exec(ctx, entry.ContainerID, container.ExecConfig{
+	// Determine workdir: use explicit config, then devcontainer remote workdir, then default
+	workdir := cfg.Workdir
+	if workdir == "" && entry.RemoteWorkdir != "" {
+		workdir = entry.RemoteWorkdir
+	}
+
+	// Execute command (use RemoteUser for devcontainer instances)
+	return m.runtime.Exec(ctx, entry.ContainerID, &container.ExecConfig{
 		Command:     cmd,
 		Interactive: cfg.Interactive,
-		Workdir:     cfg.Workdir,
+		Workdir:     workdir,
 		Env:         cfg.Env,
+		User:        entry.RemoteUser,
 	})
 }
 
@@ -815,13 +878,23 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 	}
 
 	// Run agent-specific setup before starting the session
-	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType, cfg.Env, cfg.RequiresAgentSetup); setupErr != nil {
+	if setupErr := m.runAgentSetup(ctx, entry.ContainerID, sessionType, cfg.Env, cfg.RequiresAgentSetup, entry.RemoteUser); setupErr != nil {
 		return nil, fmt.Errorf("agent setup: %w", setupErr)
+	}
+
+	// Determine workdir: use devcontainer remote workdir if set, otherwise default to /workspace
+	workdir := "/workspace"
+	if entry.RemoteWorkdir != "" {
+		workdir = entry.RemoteWorkdir
 	}
 
 	// Build the command to execute inside the container
 	// The multiplexer runs on the host, so we wrap the command with the runtime's exec command
-	execCmd := append(m.runtime.ExecCommand(), "-it", "-w", "/workspace")
+	execCmd := append(m.runtime.ExecCommand(), "-it")
+	if entry.RemoteUser != "" {
+		execCmd = append(execCmd, "-u", entry.RemoteUser)
+	}
+	execCmd = append(execCmd, "-w", workdir)
 	for _, e := range cfg.Env {
 		execCmd = append(execCmd, "-e", e)
 	}
@@ -881,15 +954,17 @@ func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *Cre
 // For Claude, this creates the config file needed to skip onboarding.
 // For Gemini/Codex with subscription auth, this writes OAuth credentials to file locations.
 // API key auth skips file setup since credentials are passed via environment variables.
-func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType, env []string, requiresSetup bool) error {
+// The user parameter specifies which user to run setup as (for devcontainer instances).
+func (m *Manager) runAgentSetup(ctx context.Context, containerID string, sessionType catalog.SessionType, env []string, requiresSetup bool, user string) error {
 	switch sessionType {
 	case catalog.SessionTypeClaude:
 		// Always create ~/.claude.json with hasCompletedOnboarding to skip interactive setup.
 		// This is required for both OAuth token and API key authentication in headless environments.
 		// See: https://github.com/anthropics/claude-code/issues/8938
 		setupCmd := `mkdir -p ~/.claude && echo '{"hasCompletedOnboarding":true}' > ~/.claude.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
+			User:    user,
 		})
 
 	case catalog.SessionTypeGemini:
@@ -904,9 +979,10 @@ func (m *Manager) runAgentSetup(ctx context.Context, containerID string, session
 echo "$GEMINI_OAUTH_CREDS" | jq -r '.oauth_creds' > ~/.gemini/oauth_creds.json && \
 echo "$GEMINI_OAUTH_CREDS" | jq -r '.google_accounts' > ~/.gemini/google_accounts.json && \
 echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/settings.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
 			Env:     env,
+			User:    user,
 		})
 
 	case catalog.SessionTypeCodex:
@@ -917,9 +993,10 @@ echo '{"security":{"auth":{"selectedType":"oauth-personal"}}}' > ~/.gemini/setti
 		// Write Codex auth.json from env var for subscription auth.
 		// CODEX_AUTH_JSON contains the contents of ~/.codex/auth.json.
 		setupCmd := `mkdir -p ~/.codex && echo "$CODEX_AUTH_JSON" > ~/.codex/auth.json`
-		return m.runtime.Exec(ctx, containerID, container.ExecConfig{
+		return m.runtime.Exec(ctx, containerID, &container.ExecConfig{
 			Command: []string{"sh", "-c", setupCmd},
 			Env:     env,
+			User:    user,
 		})
 
 	default:

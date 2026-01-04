@@ -203,6 +203,7 @@ func initManager() error {
 		LogsDir:      logsDir,
 		RuntimeType:  runtimeType,
 		ConfigFlags:  configFlags,
+		Executor:     executor,
 	})
 
 	return nil

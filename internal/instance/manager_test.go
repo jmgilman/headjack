@@ -578,7 +578,7 @@ func TestManager_Attach(t *testing.T) {
 					Status: container.StatusRunning,
 				}, nil
 			},
-			ExecFunc: func(ctx context.Context, id string, cfg container.ExecConfig) error {
+			ExecFunc: func(ctx context.Context, id string, cfg *container.ExecConfig) error {
 				assert.Equal(t, "container-123", id)
 				assert.Equal(t, []string{"bash", "-c", "echo hello"}, cfg.Command)
 				return nil
@@ -611,7 +611,7 @@ func TestManager_Attach(t *testing.T) {
 					Status: container.StatusRunning,
 				}, nil
 			},
-			ExecFunc: func(ctx context.Context, id string, cfg container.ExecConfig) error {
+			ExecFunc: func(ctx context.Context, id string, cfg *container.ExecConfig) error {
 				assert.Equal(t, []string{"/bin/bash"}, cfg.Command)
 				return nil
 			},

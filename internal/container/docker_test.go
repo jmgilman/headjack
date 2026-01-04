@@ -262,7 +262,7 @@ func TestDockerRuntime_Exec(t *testing.T) {
 		}
 
 		runtime := NewDockerRuntime(mockExec, DockerConfig{})
-		err := runtime.Exec(ctx, "abc123", ExecConfig{
+		err := runtime.Exec(ctx, "abc123", &ExecConfig{
 			Command: []string{"bash"},
 		})
 
@@ -288,7 +288,7 @@ func TestDockerRuntime_Exec(t *testing.T) {
 		}
 
 		runtime := NewDockerRuntime(mockExec, DockerConfig{})
-		err := runtime.Exec(ctx, "abc123", ExecConfig{
+		err := runtime.Exec(ctx, "abc123", &ExecConfig{
 			Command: []string{"ls"},
 			Workdir: "/app",
 		})
@@ -307,7 +307,7 @@ func TestDockerRuntime_Exec(t *testing.T) {
 		}
 
 		runtime := NewDockerRuntime(mockExec, DockerConfig{})
-		err := runtime.Exec(ctx, "missing", ExecConfig{
+		err := runtime.Exec(ctx, "missing", &ExecConfig{
 			Command: []string{"bash"},
 		})
 
@@ -325,7 +325,7 @@ func TestDockerRuntime_Exec(t *testing.T) {
 		}
 
 		runtime := NewDockerRuntime(mockExec, DockerConfig{})
-		err := runtime.Exec(ctx, "abc123", ExecConfig{
+		err := runtime.Exec(ctx, "abc123", &ExecConfig{
 			Command: []string{"bash"},
 		})
 

@@ -59,8 +59,10 @@ type Instance struct {
 
 // CreateConfig configures instance creation.
 type CreateConfig struct {
-	Branch string // Branch to create or checkout
-	Image  string // OCI image to use for container
+	Branch          string            // Branch to create or checkout
+	Image           string            // OCI image to use for container (vanilla mode)
+	WorkspaceFolder string            // Path to folder with devcontainer.json (devcontainer mode)
+	Runtime         container.Runtime // Optional runtime override (for devcontainer)
 }
 
 // AttachConfig configures instance attachment.

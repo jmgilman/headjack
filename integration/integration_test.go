@@ -79,17 +79,7 @@ func TestScripts(t *testing.T) {
 
 // detectRuntime auto-detects the available container runtime.
 func detectRuntime() string {
-	if runtime.GOOS == "darwin" {
-		// Prefer Apple Containerization on macOS
-		if _, err := exec.LookPath("container"); err == nil {
-			return "apple"
-		}
-		// Fall back to Docker
-		if _, err := exec.LookPath("docker"); err == nil {
-			return "docker"
-		}
-	}
-	// Linux: prefer Docker for CI consistency
+	// Prefer Docker for cross-platform consistency
 	if _, err := exec.LookPath("docker"); err == nil {
 		return "docker"
 	}
@@ -173,8 +163,6 @@ func evalCondition(cond string, runtimeName string) (bool, error) {
 		return runtimeName == "podman", nil
 	case "docker":
 		return runtimeName == "docker", nil
-	case "apple":
-		return runtimeName == "apple", nil
 	case "linux":
 		return runtime.GOOS == "linux", nil
 	case "darwin":
@@ -198,9 +186,6 @@ func cmdCleanupContainers(ts *testscript.TestScript, neg bool, args []string) {
 	var cmd *exec.Cmd
 
 	switch runtimeName {
-	case "apple":
-		// Apple container CLI cleanup
-		cmd = exec.Command("sh", "-c", `container list --format json 2>/dev/null | jq -r '.[].configuration.id // empty' | grep '^hjk-' | while read id; do container stop "$id" 2>/dev/null; container rm "$id" 2>/dev/null; done`)
 	case "docker":
 		cmd = exec.Command("sh", "-c", `docker ps -a --format '{{.Names}}' 2>/dev/null | grep '^hjk-' | xargs -r docker rm -f 2>/dev/null`)
 	default: // podman

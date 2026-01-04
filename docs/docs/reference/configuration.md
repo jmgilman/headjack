@@ -64,7 +64,7 @@ Container runtime configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `runtime.name` | string | `docker` | Container runtime to use. Valid values: `podman`, `apple`, `docker`. |
+| `runtime.name` | string | `docker` | Container runtime to use. Valid values: `podman`, `docker`. |
 | `runtime.flags` | map[string]any | `{}` | Additional flags to pass to the container runtime. |
 
 ## Example Configuration
@@ -145,7 +145,7 @@ Headjack validates configuration values when loading and setting them:
 
 - `default.agent` must be one of: `claude`, `gemini`, `codex` (or empty)
 - `default.base_image` is required and cannot be empty
-- `runtime.name` must be one of: `podman`, `apple`, `docker`
+- `runtime.name` must be one of: `podman`, `docker`
 - All storage paths are required
 
 Invalid values will result in an error message describing the validation failure.

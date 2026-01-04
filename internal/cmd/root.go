@@ -27,9 +27,6 @@ import (
 // baseDeps lists the external binaries that must always be available.
 var baseDeps = []string{"git"}
 
-// runtimeNameApple is the runtime name for Apple's container framework.
-const runtimeNameApple = "apple"
-
 // runtimeNameDocker is the runtime name for Docker.
 const runtimeNameDocker = "docker"
 
@@ -129,13 +126,8 @@ func checkDependencies() error {
 
 // getRuntimeBinary returns the binary name for the configured runtime.
 func getRuntimeBinary() string {
-	if appConfig != nil {
-		switch appConfig.Runtime.Name {
-		case runtimeNameApple:
-			return "container"
-		case runtimeNameDocker:
-			return runtimeBinaryDocker
-		}
+	if appConfig != nil && appConfig.Runtime.Name != "" {
+		return appConfig.Runtime.Name // Runtime name matches binary name (docker, podman)
 	}
 	// Default to docker
 	return runtimeBinaryDocker
@@ -173,8 +165,6 @@ func initManager() error {
 		runtimeName = appConfig.Runtime.Name
 	}
 	switch runtimeName {
-	case runtimeNameApple:
-		runtime = container.NewAppleRuntime(executor, container.AppleConfig{})
 	case runtimeNameDocker:
 		runtime = container.NewDockerRuntime(executor, container.DockerConfig{})
 	default:
@@ -212,8 +202,6 @@ func initManager() error {
 // runtimeNameToType converts a runtime name string to RuntimeType.
 func runtimeNameToType(name string) instance.RuntimeType {
 	switch name {
-	case runtimeNameApple:
-		return instance.RuntimeApple
 	case runtimeNameDocker:
 		return instance.RuntimeDocker
 	default:

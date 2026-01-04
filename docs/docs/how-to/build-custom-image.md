@@ -27,7 +27,7 @@ hjk run feat/auth --base ghcr.io/gilmanlab/headjack:dind
 
 ### Prerequisites
 
-- Docker, Podman, or Apple Container installed
+- Docker or Podman installed
 - Familiarity with Dockerfile syntax
 
 ### Create a Dockerfile
@@ -85,7 +85,7 @@ podman build -t my-custom-headjack:latest -f Dockerfile.headjack .
 
 ### Build for multiple architectures
 
-For teams with both Intel and Apple Silicon Macs (using Docker buildx):
+For teams with both Intel and ARM Macs (using Docker buildx):
 
 ```bash
 docker buildx build \

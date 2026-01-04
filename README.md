@@ -49,7 +49,7 @@ Full documentation is available at [headjack.gilman.io](https://headjack.gilman.
 ## Requirements
 
 - macOS or Linux
-- [Docker](https://www.docker.com/) (default), [Podman](https://podman.io/), or Apple Containerization (macOS 26+)
+- [Docker](https://www.docker.com/) (default) or [Podman](https://podman.io/)
 - Git
 
 ## License

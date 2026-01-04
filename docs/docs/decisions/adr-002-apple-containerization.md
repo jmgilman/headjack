@@ -8,7 +8,11 @@ description: Decision to use Apple Containerization Framework for agent isolatio
 
 ## Status
 
-Accepted
+Superseded
+
+:::info Supersession Note
+Apple Containerization support was removed from Headjack. The project now supports only Docker and Podman runtimes for cross-platform compatibility. This ADR is preserved for historical context.
+:::
 
 ## Context
 

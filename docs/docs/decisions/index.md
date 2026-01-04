@@ -17,7 +17,7 @@ An Architecture Decision Record (ADR) is a document that captures an important a
 | ADR | Title | Status |
 |-----|-------|--------|
 | [ADR-001](./adr-001-macos-only) | Initial macOS-Only Platform Support | Superseded |
-| [ADR-002](./adr-002-apple-containerization) | Apple Containerization Framework | Accepted |
+| [ADR-002](./adr-002-apple-containerization) | Apple Containerization Framework | Superseded |
 | [ADR-003](./adr-003-go-language) | Go as Implementation Language | Accepted |
 | [ADR-004](./adr-004-cli-agents) | CLI-Based Agents over API-Based | Accepted |
 | [ADR-005](./adr-005-no-gpg-support) | Defer GPG Commit Signing Support | Accepted |
@@ -27,7 +27,7 @@ An Architecture Decision Record (ADR) is a document that captures an important a
 
 These decisions reflect several key themes in Headjack's design:
 
-- **Simplicity over generality**: initial single-platform scope (macOS), OCI images only, CLI agents only
-- **Leverage existing ecosystems**: Apple Containerization, Go CLI patterns, standard OCI tooling
+- **Simplicity over generality**: OCI images only, CLI agents only
+- **Leverage existing ecosystems**: Docker/Podman, Go CLI patterns, standard OCI tooling
 - **Defer complexity**: GPG support deferred, Nix support left to users
 - **Optimize for the common case**: Subscription-based agents, opinionated base images

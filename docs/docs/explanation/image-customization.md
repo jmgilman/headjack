@@ -6,7 +6,7 @@ description: OCI images approach vs alternatives like Nix
 
 # Image Customization
 
-Headjack runs agents in containers, and those containers need the right tools installed. How do you customize the environment when your project needs specific languages, frameworks, or system packages? Headjack answers this with standard OCI images, delegating all customization to Docker, Podman, or Apple Container tooling you already know.
+Headjack runs agents in containers, and those containers need the right tools installed. How do you customize the environment when your project needs specific languages, frameworks, or system packages? Headjack answers this with standard OCI images, delegating all customization to Docker or Podman tooling you already know.
 
 ## The Customization Problem
 

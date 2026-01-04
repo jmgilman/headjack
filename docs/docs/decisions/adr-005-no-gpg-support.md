@@ -12,15 +12,15 @@ Accepted
 
 ## Context
 
-Developers commonly use GPG to sign git commits. When running agents in isolated Apple Containerization instances, the host's GPG keys and agent are not directly accessible.
+Developers commonly use GPG to sign git commits. When running agents in isolated container instances, the host's GPG keys and agent are not directly accessible.
 
 We investigated two approaches to enable GPG signing from within containers:
 
 ### Option 1: GPG Agent Forwarding via TCP Bridge
 
-GPG agent forwarding works by proxying the host's `gpg-agent` socket into the container. However, Unix sockets don't cross VM boundaries (each Apple Container is a separate VM).
+GPG agent forwarding works by proxying the host's `gpg-agent` socket into the container. This requires mounting the socket into the container.
 
-A workaround exists using `socat` to bridge Unix socket → TCP on the host, then TCP → Unix socket in the container. This was validated empirically and works, including with hardware tokens (Yubikey).
+A TCP bridge approach using `socat` to bridge Unix socket → TCP on the host, then TCP → Unix socket in the container was validated empirically and works, including with hardware tokens (Yubikey).
 
 **Complexity:**
 - Requires `socat` installed on host

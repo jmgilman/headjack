@@ -72,7 +72,6 @@ type RuntimeType string
 // Runtime type constants.
 const (
 	RuntimePodman RuntimeType = "podman"
-	RuntimeApple  RuntimeType = "apple"
 	RuntimeDocker RuntimeType = "docker"
 )
 
@@ -150,7 +149,6 @@ type imageRuntimeConfig struct {
 const (
 	labelInit        = "io.headjack.init"
 	labelPodmanFlags = "io.headjack.podman.flags"
-	labelAppleFlags  = "io.headjack.apple.flags"
 	labelDockerFlags = "io.headjack.docker.flags"
 )
 
@@ -158,7 +156,6 @@ const (
 // Returns default values if the registry client is nil or metadata cannot be fetched.
 // Runtime-specific flags are extracted based on the configured runtime type:
 // - Podman: io.headjack.podman.flags
-// - Apple: io.headjack.apple.flags
 // - Docker: io.headjack.docker.flags
 func (m *Manager) getImageRuntimeConfig(ctx context.Context, image string) imageRuntimeConfig {
 	cfg := imageRuntimeConfig{
@@ -186,8 +183,6 @@ func (m *Manager) getImageRuntimeConfig(ctx context.Context, image string) image
 		switch m.runtimeType {
 		case RuntimePodman:
 			flagsLabel = labelPodmanFlags
-		case RuntimeApple:
-			flagsLabel = labelAppleFlags
 		case RuntimeDocker:
 			flagsLabel = labelDockerFlags
 		}

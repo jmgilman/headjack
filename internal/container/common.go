@@ -31,7 +31,7 @@ type baseRuntime struct {
 	exec        exec.Executor
 	binaryName  string
 	execCommand []string
-	listArgs    []string        // e.g., ["ps", "-a"] for Podman, ["list"] for Apple
+	listArgs    []string        // e.g., ["ps", "-a"] for Docker/Podman
 	parser      containerParser // Runtime-specific JSON parser
 }
 

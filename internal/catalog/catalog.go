@@ -57,6 +57,10 @@ type Entry struct {
 	CreatedAt   time.Time `json:"created_at"`
 	Status      Status    `json:"status"`
 	Sessions    []Session `json:"sessions"` // Sessions running within this instance
+
+	// Devcontainer-specific fields (populated when using devcontainer runtime)
+	RemoteUser    string `json:"remote_user,omitempty"`    // User for exec operations
+	RemoteWorkdir string `json:"remote_workdir,omitempty"` // Working directory inside container
 }
 
 // ListFilter filters catalog queries.

@@ -14,6 +14,7 @@ import (
 
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/container"
+	"github.com/jmgilman/headjack/internal/exec"
 	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/logging"
@@ -77,16 +78,19 @@ const (
 
 // ManagerConfig configures the Manager.
 type ManagerConfig struct {
-	WorktreesDir string      // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
-	LogsDir      string      // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
-	RuntimeType  RuntimeType // Container runtime type (docker, podman, or apple)
-	ConfigFlags  flags.Flags // Flags from config file (take precedence over image labels)
+	WorktreesDir string        // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
+	LogsDir      string        // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
+	RuntimeType  RuntimeType   // Container runtime type (docker, podman, or apple)
+	ConfigFlags  flags.Flags   // Flags from config file (take precedence over image labels)
+	Executor     exec.Executor // Command executor (for devcontainer runtime creation)
 }
 
 // Manager orchestrates instance lifecycle operations.
 type Manager struct {
 	catalog      catalogStore
 	runtime      containerRuntime
+	publicRT     container.Runtime // Public runtime interface (same as runtime, exposed for devcontainer)
+	executor     exec.Executor
 	git          gitOpener
 	mux          sessionMultiplexer
 	registry     registryClient
@@ -103,9 +107,14 @@ func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, 
 		runtimeType = RuntimeDocker
 	}
 
+	// Type assert to get public runtime interface (all container.Runtime implementations satisfy containerRuntime)
+	publicRT, _ := runtime.(container.Runtime)
+
 	return &Manager{
 		catalog:      store,
 		runtime:      runtime,
+		publicRT:     publicRT,
+		executor:     cfg.Executor,
 		git:          opener,
 		mux:          mux,
 		registry:     reg,
@@ -114,6 +123,18 @@ func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, 
 		runtimeType:  runtimeType,
 		configFlags:  cfg.ConfigFlags,
 	}
+}
+
+// Runtime returns the underlying container runtime.
+// This is used by the devcontainer runtime to delegate lifecycle operations.
+func (m *Manager) Runtime() container.Runtime {
+	return m.publicRT
+}
+
+// Executor returns the command executor.
+// This is used by the devcontainer runtime to execute CLI commands.
+func (m *Manager) Executor() exec.Executor {
+	return m.executor
 }
 
 // imageRuntimeConfig holds image-specific runtime configuration extracted from labels.
@@ -237,22 +258,14 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		return nil, fmt.Errorf("create worktree: %w", wtErr)
 	}
 
-	// Fetch image metadata to get runtime configuration from labels
-	imgCfg := m.getImageRuntimeConfig(ctx, cfg.Image)
+	// Select runtime: use provided override or default to manager's runtime
+	runtime := m.selectRuntime(cfg.Runtime)
 
-	// Merge flags: config takes precedence over image labels
-	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+	// Build container run config based on mode (devcontainer vs vanilla)
+	runCfg := m.buildRunConfig(ctx, cfg, containerName, worktreePath)
 
 	// Create container
-	c, err := m.runtime.Run(ctx, &container.RunConfig{
-		Name:  containerName,
-		Image: cfg.Image,
-		Mounts: []container.Mount{
-			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
-		},
-		Init:  imgCfg.Init,
-		Flags: flags.ToArgs(mergedFlags),
-	})
+	c, err := runtime.Run(ctx, runCfg)
 	if err != nil {
 		// Cleanup worktree on container failure
 		if wtErr := repo.RemoveWorktree(ctx, worktreePath); wtErr != nil {
@@ -273,7 +286,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 			cleanup()
 			return nil, fmt.Errorf("update catalog entry: %w (additionally, failed to stop container: %v)", updateErr, stopErr)
 		}
-		if removeErr := m.runtime.Remove(ctx, c.ID); removeErr != nil && removeErr != container.ErrNotFound {
+		if removeErr := runtime.Remove(ctx, c.ID); removeErr != nil && removeErr != container.ErrNotFound {
 			cleanup()
 			return nil, fmt.Errorf("update catalog entry: %w (additionally, failed to remove container: %v)", updateErr, removeErr)
 		}
@@ -297,6 +310,44 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig)
 		CreatedAt:   entry.CreatedAt,
 		Status:      StatusRunning,
 	}, nil
+}
+
+// selectRuntime returns the provided runtime override if set, otherwise the manager's default.
+func (m *Manager) selectRuntime(override containerRuntime) containerRuntime {
+	if override != nil {
+		return override
+	}
+	return m.runtime
+}
+
+// buildRunConfig creates a container.RunConfig based on the creation mode.
+// For devcontainer mode (WorkspaceFolder set), it configures for devcontainer CLI.
+// For vanilla mode, it fetches image metadata and merges flags.
+func (m *Manager) buildRunConfig(ctx context.Context, cfg CreateConfig, containerName, worktreePath string) *container.RunConfig {
+	// Devcontainer mode: minimal config, devcontainer CLI handles the rest
+	if cfg.WorkspaceFolder != "" {
+		return &container.RunConfig{
+			Name:            containerName,
+			WorkspaceFolder: cfg.WorkspaceFolder,
+			Mounts: []container.Mount{
+				{Source: worktreePath, Target: "/workspace", ReadOnly: false},
+			},
+		}
+	}
+
+	// Vanilla mode: fetch image metadata and merge flags
+	imgCfg := m.getImageRuntimeConfig(ctx, cfg.Image)
+	mergedFlags := flags.Merge(imgCfg.Flags, m.configFlags)
+
+	return &container.RunConfig{
+		Name:  containerName,
+		Image: cfg.Image,
+		Mounts: []container.Mount{
+			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
+		},
+		Init:  imgCfg.Init,
+		Flags: flags.ToArgs(mergedFlags),
+	}
 }
 
 // Get retrieves an instance by ID, including live container status.

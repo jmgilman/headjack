@@ -8,6 +8,8 @@ import (
 
 	"github.com/jmgilman/headjack/internal/auth"
 	"github.com/jmgilman/headjack/internal/config"
+	"github.com/jmgilman/headjack/internal/container"
+	"github.com/jmgilman/headjack/internal/devcontainer"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/keychain"
 )
@@ -54,10 +56,11 @@ All session output is captured to a log file regardless of attached/detached mod
 
 // runFlags holds parsed flags for the run command.
 type runFlags struct {
-	image       string
-	agent       string
-	sessionName string
-	detached    bool
+	image         string
+	imageExplicit bool // true if --base was explicitly passed
+	agent         string
+	sessionName   string
+	detached      bool
 }
 
 // parseRunFlags extracts and validates flags from the command.
@@ -66,6 +69,8 @@ func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get base flag: %w", err)
 	}
+	imageExplicit := cmd.Flags().Changed("base")
+
 	agent, err := cmd.Flags().GetString("agent")
 	if err != nil {
 		return nil, fmt.Errorf("get agent flag: %w", err)
@@ -82,10 +87,11 @@ func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
 	image = resolveBaseImage(cmd.Context(), image)
 
 	return &runFlags{
-		image:       image,
-		agent:       agent,
-		sessionName: sessionName,
-		detached:    detached,
+		image:         image,
+		imageExplicit: imageExplicit,
+		agent:         agent,
+		sessionName:   sessionName,
+		detached:      detached,
 	}, nil
 }
 
@@ -202,7 +208,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	inst, err := getOrCreateInstance(cmd, mgr, repoPath, branch, flags.image)
+	inst, err := getOrCreateInstance(cmd, mgr, repoPath, branch, flags.image, flags.imageExplicit)
 	if err != nil {
 		return err
 	}
@@ -263,7 +269,8 @@ func runtimeLogsCommand(runtimeName, containerID string) string {
 
 // getOrCreateInstance retrieves an existing instance or creates a new one.
 // If the instance exists but is stopped, it restarts the container.
-func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch, image string) (*instance.Instance, error) {
+// If imageExplicit is false and a devcontainer.json exists, devcontainer mode is used.
+func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch, image string, imageExplicit bool) (*instance.Instance, error) {
 	// Try to get existing instance
 	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
 	if err == nil {
@@ -285,17 +292,92 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 		return nil, fmt.Errorf("get instance: %w", err)
 	}
 
+	// Build create config - detect devcontainer mode if applicable
+	createCfg := buildCreateConfig(cmd, repoPath, branch, image, imageExplicit)
+
 	// Create new instance
-	inst, err = mgr.Create(cmd.Context(), repoPath, instance.CreateConfig{
-		Branch: branch,
-		Image:  image,
-	})
+	inst, err = mgr.Create(cmd.Context(), repoPath, createCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create instance: %w", err)
 	}
 
 	fmt.Printf("Created instance %s for branch %s\n", inst.ID, inst.Branch)
 	return inst, nil
+}
+
+// buildCreateConfig builds the instance creation config, detecting devcontainer mode if applicable.
+// Devcontainer mode is used when:
+//   - No --base flag was explicitly passed (imageExplicit is false)
+//   - A devcontainer.json exists in the repo
+//   - The runtime is Docker or Podman (not Apple)
+func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) instance.CreateConfig {
+	cfg := instance.CreateConfig{
+		Branch: branch,
+		Image:  image,
+	}
+
+	// If image was explicitly passed, use vanilla mode
+	if imageExplicit {
+		return cfg
+	}
+
+	// Check for devcontainer.json
+	if !devcontainer.HasConfig(repoPath) {
+		return cfg
+	}
+
+	// Check runtime compatibility (devcontainer only works with Docker/Podman)
+	runtimeName := runtimeNameDocker
+	if appCfg := ConfigFromContext(cmd.Context()); appCfg != nil && appCfg.Runtime.Name != "" {
+		runtimeName = appCfg.Runtime.Name
+	}
+
+	if runtimeName == runtimeNameApple {
+		fmt.Println("Warning: devcontainer.json detected but Apple runtime does not support devcontainers, using vanilla mode")
+		return cfg
+	}
+
+	// Create devcontainer runtime wrapping the underlying runtime
+	dcRuntime := createDevcontainerRuntime(cmd, runtimeName)
+	if dcRuntime == nil {
+		// Fall back to vanilla mode if we can't create the devcontainer runtime
+		return cfg
+	}
+
+	fmt.Println("Detected devcontainer.json, using devcontainer mode")
+
+	cfg.WorkspaceFolder = repoPath
+	cfg.Runtime = dcRuntime
+	cfg.Image = "" // Not needed in devcontainer mode
+
+	return cfg
+}
+
+// createDevcontainerRuntime creates a DevcontainerRuntime wrapping the appropriate underlying runtime.
+func createDevcontainerRuntime(cmd *cobra.Command, runtimeName string) container.Runtime {
+	// Get the underlying runtime from the manager
+	mgr := ManagerFromContext(cmd.Context())
+	if mgr == nil {
+		return nil
+	}
+
+	// Determine the docker path based on runtime
+	var dockerPath string
+	switch runtimeName {
+	case runtimeNameDocker:
+		dockerPath = "docker"
+	default:
+		dockerPath = "podman"
+	}
+
+	// Create devcontainer runtime
+	// Note: We use the manager's runtime as the underlying runtime
+	return devcontainer.NewRuntime(
+		mgr.Runtime(),
+		mgr.Executor(),
+		"devcontainer", // CLI path - assumes it's in PATH
+		dockerPath,
+	)
 }
 
 // resolveAgent resolves the agent name, handling the default sentinel.

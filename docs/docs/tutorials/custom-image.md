@@ -230,7 +230,7 @@ Now use your custom image with Headjack. Specify it with the `--image` flag when
 
 ```bash
 hjk run feat/new-feature --image my-app-headjack:latest
-hjk agent feat/new-feature claude "Add user authentication using PostgreSQL sessions"
+hjk agent feat/new-feature claude --prompt "Add user authentication using PostgreSQL sessions"
 ```
 
 The agent starts immediately with all dependencies available. No waiting for Python or Node.js installation.
@@ -259,7 +259,7 @@ Now all `hjk run` commands use your custom image automatically:
 
 ```bash
 hjk run feat/new-feature
-hjk agent feat/new-feature claude "Add user authentication"
+hjk agent feat/new-feature claude --prompt "Add user authentication"
 ```
 
 ## Step 11: Share with Your Team

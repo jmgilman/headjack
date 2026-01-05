@@ -11,7 +11,7 @@ Start an agent session (Claude, Gemini, or Codex) in an existing instance.
 ## Synopsis
 
 ```bash
-hjk agent <branch> <agent_name> [prompt] [flags]
+hjk agent <branch> [agent_name] [flags]
 ```
 
 ## Description
@@ -34,8 +34,7 @@ All session output is captured to a log file regardless of attached/detached mod
 | Argument | Description |
 |----------|-------------|
 | `branch` | Git branch name of the instance (required) |
-| `agent_name` | Agent to start: `claude`, `gemini`, or `codex` (required) |
-| `prompt` | Instructions to pass to the agent (optional) |
+| `agent_name` | Agent to start: `claude`, `gemini`, or `codex` (optional, uses default if not specified) |
 
 ## Flags
 
@@ -43,25 +42,48 @@ All session output is captured to a log file regardless of attached/detached mod
 |------|-------|------|---------|-------------|
 | `--name` | `-n` | string | | Override the auto-generated session name |
 | `--detached` | `-d` | bool | `false` | Create session but do not attach (run in background) |
+| `--prompt` | `-p` | string | | Initial prompt to send to the agent |
 
 ## Examples
 
 ```bash
-# Start Claude agent on existing instance
+# Start default agent on existing instance
+hjk agent feat/auth
+
+# Start Claude agent explicitly
 hjk agent feat/auth claude
 
-# Start Claude agent with a prompt
-hjk agent feat/auth claude "Implement JWT authentication"
+# Start agent with a prompt
+hjk agent feat/auth --prompt "Implement JWT authentication"
+hjk agent feat/auth claude --prompt "Implement JWT authentication"
+
+# Short form with -p flag
+hjk agent feat/auth -p "Fix the login bug"
 
 # Start Gemini agent with custom session name
 hjk agent feat/auth gemini --name auth-session
 
 # Start agent in detached mode (run in background)
-hjk agent feat/auth claude -d "Refactor the auth module"
+hjk agent feat/auth -d --prompt "Refactor the auth module"
 
 # Run multiple agents in parallel on the same instance
-hjk agent feat/auth claude -d "Implement the login endpoint"
-hjk agent feat/auth claude -d "Write tests for authentication"
+hjk agent feat/auth -d --prompt "Implement the login endpoint"
+hjk agent feat/auth -d --prompt "Write tests for authentication"
+```
+
+## Default Agent
+
+If no agent name is specified, the default from configuration is used. Set the default with:
+
+```bash
+hjk config default.agent claude
+```
+
+If no default is configured and no agent is specified, you'll see an error:
+
+```
+Error: no default agent configured and none specified
+hint: run 'hjk config default.agent <agent_name>' to set a default
 ```
 
 ## Authentication
@@ -90,7 +112,7 @@ The typical workflow separates instance creation from agent sessions:
 hjk run feat/auth
 
 # Step 2: Start an agent session
-hjk agent feat/auth claude "Your prompt here"
+hjk agent feat/auth --prompt "Your prompt here"
 
 # Step 3: Detach from session (Ctrl+B, d)
 

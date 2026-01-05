@@ -57,7 +57,7 @@ hjk run feat/auth --image my-registry.io/custom-image:latest
 
 # Typical workflow: create instance, then start agent
 hjk run feat/auth
-hjk agent feat/auth claude "Implement JWT authentication"
+hjk agent feat/auth claude --prompt "Implement JWT authentication"
 
 # Or start a shell session
 hjk run feat/auth
@@ -73,7 +73,7 @@ The typical workflow separates instance creation from session management:
 hjk run feat/auth
 
 # Step 2: Start an agent session
-hjk agent feat/auth claude "Your prompt here"
+hjk agent feat/auth claude --prompt "Your prompt here"
 
 # Step 3: Later, attach to the session
 hjk attach feat/auth

@@ -23,7 +23,7 @@ This creates a git worktree for the branch and a container with the worktree mou
 Run an LLM coding agent (Claude, Gemini, or Codex) with a prompt:
 
 ```bash
-hjk agent feat/auth claude "Implement JWT authentication"
+hjk agent feat/auth claude --prompt "Implement JWT authentication"
 ```
 
 The terminal attaches automatically to the agent session.
@@ -41,9 +41,9 @@ hjk agent fix/header-bug gemini
 Specify the agent as the second argument:
 
 ```bash
-hjk agent feat/api claude "Add rate limiting"
-hjk agent feat/api gemini "Add rate limiting"
-hjk agent feat/api codex "Add rate limiting"
+hjk agent feat/api claude --prompt "Add rate limiting"
+hjk agent feat/api gemini --prompt "Add rate limiting"
+hjk agent feat/api codex --prompt "Add rate limiting"
 ```
 
 ## Start a shell session
@@ -81,7 +81,7 @@ This prints output directly to your terminal without creating a tmux session.
 Start any session in the background with `-d`:
 
 ```bash
-hjk agent feat/auth claude -d "Refactor the auth module"
+hjk agent feat/auth claude -d --prompt "Refactor the auth module"
 hjk exec feat/auth -d npm run build
 ```
 
@@ -98,9 +98,9 @@ hjk run feat/api
 hjk run fix/header-bug
 
 # Then start agents in detached mode
-hjk agent feat/auth claude -d "Implement JWT authentication"
-hjk agent feat/api claude -d "Add rate limiting to the API"
-hjk agent fix/header-bug gemini -d "Fix the header rendering bug"
+hjk agent feat/auth claude -d --prompt "Implement JWT authentication"
+hjk agent feat/api claude -d --prompt "Add rate limiting to the API"
+hjk agent fix/header-bug gemini -d --prompt "Fix the header rendering bug"
 ```
 
 Monitor all running instances:
@@ -114,8 +114,8 @@ hjk ps
 Run multiple agents within a single instance using `--name`:
 
 ```bash
-hjk agent feat/auth claude -d --name auth-impl "Implement the auth module"
-hjk agent feat/auth claude -d --name auth-tests "Write tests for the auth module"
+hjk agent feat/auth claude -d --name auth-impl --prompt "Implement the auth module"
+hjk agent feat/auth claude -d --name auth-tests --prompt "Write tests for the auth module"
 hjk exec feat/auth --name debug-shell  # add a shell session
 ```
 
@@ -186,7 +186,7 @@ hjk logs feat/auth happy-panda --full   # complete log
 ### Custom session name
 
 ```bash
-hjk agent feat/auth claude --name jwt-implementation "Implement JWT"
+hjk agent feat/auth claude --name jwt-implementation --prompt "Implement JWT"
 hjk exec feat/auth --name build-session npm run build
 ```
 

@@ -142,7 +142,7 @@ The first run may take a moment while the container image is pulled. Subsequent 
 Now start Claude with your task:
 
 ```bash
-hjk agent feat/add-login claude "Add a login page to the application"
+hjk agent feat/add-login claude --prompt "Add a login page to the application"
 ```
 
 This creates a session running Claude Code with your prompt. Your terminal attaches to the session, and you will see Claude Code starting up and beginning to work on your task.

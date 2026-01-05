@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -13,7 +14,7 @@ import (
 )
 
 var agentCmd = &cobra.Command{
-	Use:   "agent <branch> <agent_name> [prompt]",
+	Use:   "agent <branch> [agent_name]",
 	Short: "Start an agent session in an existing instance",
 	Long: `Start an agent session within an existing instance for the specified branch.
 
@@ -21,19 +22,26 @@ The instance must already exist (created with 'hjk run'). This command creates
 a new session running the specified agent (claude, gemini, or codex) and attaches
 to it unless --detached is specified.
 
+If agent_name is not specified, the default agent from configuration is used.
+Set the default with 'hjk config default.agent <agent_name>'.
+
 All session output is captured to a log file regardless of attached/detached mode.`,
-	Example: `  # Start Claude agent on existing instance
+	Example: `  # Start default agent on existing instance
+  hjk agent feat/auth
+
+  # Start Claude agent explicitly
   hjk agent feat/auth claude
 
-  # Start Claude agent with a prompt
-  hjk agent feat/auth claude "Implement JWT authentication"
+  # Start agent with a prompt
+  hjk agent feat/auth --prompt "Implement JWT authentication"
+  hjk agent feat/auth claude --prompt "Implement JWT authentication"
 
   # Start Gemini agent with custom session name
   hjk agent feat/auth gemini --name auth-session
 
   # Start agent in detached mode (run in background)
-  hjk agent feat/auth claude -d "Refactor the auth module"`,
-	Args: cobra.RangeArgs(2, 3),
+  hjk agent feat/auth -d --prompt "Refactor the auth module"`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runAgentCmd,
 }
 
@@ -41,6 +49,7 @@ All session output is captured to a log file regardless of attached/detached mod
 type agentFlags struct {
 	sessionName string
 	detached    bool
+	prompt      string
 }
 
 // parseAgentFlags extracts and validates flags from the command.
@@ -53,10 +62,15 @@ func parseAgentFlags(cmd *cobra.Command) (*agentFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get detached flag: %w", err)
 	}
+	prompt, err := cmd.Flags().GetString("prompt")
+	if err != nil {
+		return nil, fmt.Errorf("get prompt flag: %w", err)
+	}
 
 	return &agentFlags{
 		sessionName: sessionName,
 		detached:    detached,
+		prompt:      prompt,
 	}, nil
 }
 
@@ -122,17 +136,37 @@ func injectAuthCredential(agent string, cfg *instance.CreateSessionConfig) error
 }
 
 // buildAgentCommand builds the command for launching an agent.
-func buildAgentCommand(agent string, args []string) []string {
+func buildAgentCommand(agent, prompt string) []string {
 	cmd := []string{agent}
-	if len(args) > 2 {
-		cmd = append(cmd, args[2])
+	if prompt != "" {
+		cmd = append(cmd, prompt)
 	}
 	return cmd
 }
 
+// resolveAgentName determines the agent name from args or config default.
+func resolveAgentName(ctx context.Context, args []string) (string, error) {
+	if len(args) > 1 {
+		return args[1], nil
+	}
+
+	// Get default agent from config
+	loader := LoaderFromContext(ctx)
+	if loader == nil {
+		return "", errors.New("no default agent configured and none specified\nhint: run 'hjk config default.agent <agent_name>' to set a default")
+	}
+	cfg, err := loader.Load()
+	if err != nil {
+		return "", fmt.Errorf("load config: %w", err)
+	}
+	if cfg.Default.Agent == "" {
+		return "", errors.New("no default agent configured and none specified\nhint: run 'hjk config default.agent <agent_name>' to set a default")
+	}
+	return cfg.Default.Agent, nil
+}
+
 func runAgentCmd(cmd *cobra.Command, args []string) error {
 	branch := args[0]
-	agentName := args[1]
 
 	mgr, err := requireManager(cmd.Context())
 	if err != nil {
@@ -140,6 +174,11 @@ func runAgentCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	flags, err := parseAgentFlags(cmd)
+	if err != nil {
+		return err
+	}
+
+	agentName, err := resolveAgentName(cmd.Context(), args)
 	if err != nil {
 		return err
 	}
@@ -159,7 +198,7 @@ func runAgentCmd(cmd *cobra.Command, args []string) error {
 	sessionCfg := &instance.CreateSessionConfig{
 		Type:    agentName,
 		Name:    flags.sessionName,
-		Command: buildAgentCommand(agentName, args),
+		Command: buildAgentCommand(agentName, flags.prompt),
 	}
 
 	// Inject agent-specific environment variables from config
@@ -207,4 +246,5 @@ func init() {
 
 	agentCmd.Flags().StringP("name", "n", "", "override auto-generated session name")
 	agentCmd.Flags().BoolP("detached", "d", false, "create session but don't attach (run in background)")
+	agentCmd.Flags().StringP("prompt", "p", "", "initial prompt to send to the agent")
 }

@@ -19,7 +19,7 @@ hjk stop feat/auth
 The instance remains in the catalog. Resume it later by running any command for that branch—Headjack automatically restarts stopped instances:
 
 ```bash
-hjk agent feat/auth claude "Continue working on auth"
+hjk agent feat/auth claude --prompt "Continue working on auth"
 ```
 
 ## Kill a specific session

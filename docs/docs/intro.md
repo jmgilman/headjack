@@ -58,10 +58,10 @@ Agents are authenticated via the `hjk auth` command before first use.
 hjk run feat/auth
 
 # Start Claude agent with a prompt
-hjk agent feat/auth claude "Implement JWT authentication"
+hjk agent feat/auth claude --prompt "Implement JWT authentication"
 
 # Run another agent in the background on the same instance
-hjk agent feat/auth claude -d "Write tests for the auth module"
+hjk agent feat/auth claude -d --prompt "Write tests for the auth module"
 
 # Start a shell session for debugging
 hjk exec feat/auth
@@ -86,7 +86,7 @@ The typical Headjack workflow has three steps:
 hjk run feat/auth
 
 # Step 2: Start an agent or shell session
-hjk agent feat/auth claude "Your task description"
+hjk agent feat/auth claude --prompt "Your task description"
 
 # Step 3: Manage sessions
 hjk attach         # Reattach to session

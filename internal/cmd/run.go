@@ -36,7 +36,7 @@ This command only creates the instance. To start a session, use:
 
   # Typical workflow: create instance, then start agent
   hjk run feat/auth
-  hjk agent feat/auth claude "Implement JWT authentication"`,
+  hjk agent feat/auth claude --prompt "Implement JWT authentication"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRunCmd,
 }

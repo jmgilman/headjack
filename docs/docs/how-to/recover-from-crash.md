@@ -29,7 +29,7 @@ feat/api    running  2         1h ago
 If the container stopped but the instance still exists, simply start a new session:
 
 ```bash
-hjk agent feat/auth claude "Continue where we left off"
+hjk agent feat/auth claude --prompt "Continue where we left off"
 ```
 
 Headjack automatically restarts the container and creates a new session. Your git worktree is preserved with all previous work.

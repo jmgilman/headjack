@@ -70,7 +70,7 @@ Instance abc123 ready for branch feat/user-validation
 Now start Claude with your task:
 
 ```bash
-hjk agent feat/user-validation claude "Add input validation to the createUser function in src/users.js. Validate that email is a valid format and name is non-empty. Throw descriptive errors for invalid input. Add unit tests for the validation logic."
+hjk agent feat/user-validation claude --prompt "Add input validation to the createUser function in src/users.js. Validate that email is a valid format and name is non-empty. Throw descriptive errors for invalid input. Add unit tests for the validation logic."
 ```
 
 Your terminal attaches to the Claude session. Watch as Claude begins working.
@@ -196,7 +196,7 @@ length (255 characters) and add a test case for that.
 **Option B: Start a new agent session with corrections**
 
 ```bash
-hjk agent feat/user-validation claude "The email validation in createUser needs one adjustment: also validate maximum length of 255 characters. Add a test for this case."
+hjk agent feat/user-validation claude --prompt "The email validation in createUser needs one adjustment: also validate maximum length of 255 characters. Add a test for this case."
 ```
 
 ## Step 10: Commit the Work

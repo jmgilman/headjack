@@ -115,7 +115,7 @@ hjk run feat/auth --image my-registry.io/my-custom-headjack:latest
 Then start an agent session:
 
 ```bash
-hjk agent feat/auth claude "Implement the feature"
+hjk agent feat/auth claude --prompt "Implement the feature"
 ```
 
 ### Set as permanent default

@@ -21,7 +21,7 @@ func TestLoader_Load_CreatesDefaultIfMissing(t *testing.T) {
 
 	// Check defaults
 	assert.Empty(t, cfg.Default.Agent)
-	assert.Equal(t, DefaultBaseImage, cfg.Default.BaseImage)
+	assert.Empty(t, cfg.Default.BaseImage)
 	assert.Contains(t, cfg.Storage.Worktrees, "headjack")
 	assert.Contains(t, cfg.Storage.Catalog, "catalog.json")
 	assert.Contains(t, cfg.Storage.Logs, "logs")
@@ -117,7 +117,7 @@ func TestLoader_Get(t *testing.T) {
 	t.Run("valid key returns value", func(t *testing.T) {
 		val, err := loader.Get("default.base_image")
 		require.NoError(t, err)
-		assert.Equal(t, DefaultBaseImage, val)
+		assert.Empty(t, val)
 	})
 
 	t.Run("invalid key returns error", func(t *testing.T) {
@@ -199,14 +199,12 @@ func TestConfig_Validate(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("missing required base_image", func(t *testing.T) {
+	t.Run("valid config without base_image", func(t *testing.T) {
 		cfg := &Config{
 			Default: DefaultConfig{Agent: ""},
 			Storage: StorageConfig{Worktrees: "/tmp/worktrees", Catalog: "/tmp/catalog.json", Logs: "/tmp/logs"},
 		}
-		err := cfg.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "BaseImage")
+		assert.NoError(t, cfg.Validate())
 	})
 }
 

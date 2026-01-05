@@ -15,7 +15,7 @@ These environment variables override values in the configuration file. They foll
 | Variable | Type | Description | Overrides |
 |----------|------|-------------|-----------|
 | `HEADJACK_DEFAULT_AGENT` | string | Default agent for new instances | `default.agent` |
-| `HEADJACK_BASE_IMAGE` | string | Default container image | `default.base_image` |
+| `HEADJACK_BASE_IMAGE` | string | Fallback container image when no devcontainer exists | `default.base_image` |
 | `HEADJACK_MULTIPLEXER` | string | Terminal multiplexer | `default.multiplexer` |
 | `HEADJACK_WORKTREE_DIR` | string | Worktree storage directory | `storage.worktrees` |
 
@@ -25,7 +25,7 @@ These environment variables override values in the configuration file. They foll
 # Use Claude as the default agent
 export HEADJACK_DEFAULT_AGENT=claude
 
-# Use a custom container image
+# Set a fallback container image (used when no devcontainer.json exists)
 export HEADJACK_BASE_IMAGE=myregistry.com/myimage:latest
 
 # Override worktree directory

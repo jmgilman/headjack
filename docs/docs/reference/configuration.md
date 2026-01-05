@@ -36,7 +36,7 @@ Default values applied when creating new instances.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `default.agent` | string | `""` (empty) | Default agent to use. Valid values: `claude`, `gemini`, `codex`. Empty means no default. |
-| `default.base_image` | string | `ghcr.io/gilmanlab/headjack:base` | Container image to use for instances. |
+| `default.base_image` | string | `""` (empty) | Fallback container image when no devcontainer is found. If empty and no devcontainer.json exists, `hjk run` will error with guidance. |
 
 ### agents
 
@@ -74,7 +74,7 @@ A complete configuration file with all options:
 ```yaml
 default:
   agent: claude
-  base_image: ghcr.io/gilmanlab/headjack:base
+  base_image: ""  # Empty by default; set if you want a fallback when no devcontainer exists
 
 agents:
   claude:
@@ -144,8 +144,17 @@ The following environment variables override their corresponding configuration k
 Headjack validates configuration values when loading and setting them:
 
 - `default.agent` must be one of: `claude`, `gemini`, `codex` (or empty)
-- `default.base_image` is required and cannot be empty
+- `default.base_image` is optional; if empty, a devcontainer.json must exist in the repository
 - `runtime.name` must be one of: `podman`, `docker`
 - All storage paths are required
 
 Invalid values will result in an error message describing the validation failure.
+
+## Devcontainer Priority
+
+When running `hjk run`, Headjack determines the container environment as follows:
+
+1. If `--image` is specified, use that image (bypasses devcontainer detection)
+2. If a `devcontainer.json` exists in the repository, use devcontainer mode
+3. If `default.base_image` is configured, use that image
+4. Otherwise, error with guidance on how to configure the environment

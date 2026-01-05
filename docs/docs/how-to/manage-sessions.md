@@ -153,11 +153,15 @@ hjk logs feat/auth happy-panda --full   # complete log
 hjk run feat/auth --agent claude --name jwt-implementation "Implement JWT"
 ```
 
-### Custom base image
+### Custom container image
 
 ```bash
-hjk run feat/auth --agent claude --base my-registry.io/custom-image:latest
+hjk run feat/auth --agent claude --image my-registry.io/custom-image:latest
 ```
+
+:::note
+Using `--image` bypasses devcontainer detection. If your repository has a `devcontainer.json`, it will be used automatically without needing `--image`.
+:::
 
 ## Troubleshooting
 

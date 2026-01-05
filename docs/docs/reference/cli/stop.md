@@ -47,4 +47,3 @@ When an instance is stopped:
 - [hjk run](run.md) - Restart a stopped instance
 - [hjk rm](rm.md) - Remove an instance entirely
 - [hjk ps](ps.md) - List instances and their status
-- [hjk recreate](recreate.md) - Recreate the container

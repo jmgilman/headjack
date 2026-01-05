@@ -21,7 +21,8 @@ const (
 	DefaultDataDir    = ".local/share/headjack"
 )
 
-// DefaultBaseImage is the default container image.
+// DefaultBaseImage is the fallback container image when no devcontainer is found.
+// This is only used when explicitly requested or when config has no base_image set.
 const DefaultBaseImage = "ghcr.io/gilmanlab/headjack:base"
 
 // Sentinel errors for configuration operations.
@@ -62,7 +63,7 @@ type Config struct {
 // DefaultConfig holds default values for new instances.
 type DefaultConfig struct {
 	Agent     string `mapstructure:"agent" validate:"omitempty,oneof=claude gemini codex"`
-	BaseImage string `mapstructure:"base_image" validate:"required"`
+	BaseImage string `mapstructure:"base_image"`
 }
 
 // AgentConfig holds agent-specific configuration.
@@ -140,7 +141,7 @@ func NewLoader() (*Loader, error) {
 // setDefaults sets all default configuration values using Viper.
 func (l *Loader) setDefaults() {
 	l.v.SetDefault("default.agent", "")
-	l.v.SetDefault("default.base_image", DefaultBaseImage)
+	l.v.SetDefault("default.base_image", "")
 	l.v.SetDefault("storage.worktrees", "~/.local/share/headjack/git")
 	l.v.SetDefault("storage.catalog", "~/.local/share/headjack/catalog.json")
 	l.v.SetDefault("storage.logs", "~/.local/share/headjack/logs")

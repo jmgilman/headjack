@@ -98,7 +98,6 @@ const sidebars: SidebarsConfig = {
             'reference/cli/stop',
             'reference/cli/kill',
             'reference/cli/rm',
-            'reference/cli/recreate',
             'reference/cli/auth',
             'reference/cli/config',
             'reference/cli/version',

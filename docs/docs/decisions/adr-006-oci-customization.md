@@ -41,7 +41,7 @@ This adds complexity:
 
 **Pure OCI image approach**
 - Ship a default base image with opinionated tooling
-- Users override with `--base <image>` or `--base <Dockerfile>`
+- Users override with `--image <image>` or `--image <Dockerfile>`
 - All customization delegated to standard OCI tooling
 
 This approach:
@@ -56,9 +56,10 @@ Use **OCI images exclusively** for environment customization. No first-class sup
 
 The customization model is:
 
-1. **Default**: Headjack ships a base image (`ghcr.io/headjack/base:latest`) with opinionated tooling
-2. **Image override**: Users specify an alternative image via `--base <registry-image>`
-3. **Dockerfile override**: Users specify a Dockerfile via `--base <path/to/Dockerfile>`
+1. **Devcontainer (default)**: If a `devcontainer.json` exists, use it automatically
+2. **Image override**: Users specify an alternative image via `--image <registry-image>`
+3. **Dockerfile override**: Users specify a Dockerfile via `--image <path/to/Dockerfile>`
+4. **Fallback**: If no devcontainer and no `--image`, use configured `default.base_image`
 
 When a Dockerfile path is provided (detected by filename ending in `Dockerfile` or `Containerfile`), Headjack runs `container build` before launching the instance. Layer caching is handled by the container runtime.
 

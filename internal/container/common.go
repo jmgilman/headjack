@@ -91,15 +91,14 @@ func (r *baseRuntime) Exec(ctx context.Context, id string, cfg *ExecConfig) erro
 		return r.execInteractive(ctx, args)
 	}
 
-	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: r.binaryName,
-		Args: args,
+	// Non-interactive mode: connect stdout/stderr directly
+	_, err = r.exec.Run(ctx, &exec.RunOptions{
+		Name:   r.binaryName,
+		Args:   args,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	})
-	if err != nil {
-		return cliError("exec in container", result, err)
-	}
-
-	return nil
+	return err
 }
 
 // Stop stops a running container gracefully.

@@ -208,17 +208,26 @@ Each instance uses a full container image. There's no Nix-style deduplication wh
 
 Custom images must be built before use. For complex images, this can take minutes. Pre-building and pushing to a registry mitigates this.
 
-## Image Variants
+## Devcontainers vs Custom Images
 
-The base image comes in variants for different use cases:
+Headjack supports two approaches to environment customization:
 
-| Variant | Features | Use Case |
-|---------|----------|----------|
-| `base` | Agent CLIs, version managers | Most development work |
-| `systemd` | Adds systemd support | Projects requiring services |
-| `dind` | Adds Docker-in-Docker | Testing Docker workflows |
+### Devcontainers (Recommended)
 
-Each variant extends the previous, adding capabilities at the cost of image size.
+If your repository contains a `devcontainer.json`, Headjack uses it automatically. This is the preferred approach because:
+
+- Configuration lives with the code
+- Standard format understood by VS Code, GitHub Codespaces, and other tools
+- Supports Dev Container Features for modular customization
+- Team members get consistent environments automatically
+
+### Custom Images
+
+Build a custom OCI image when:
+
+- Your repository doesn't have a devcontainer configuration
+- You need to share the same image across multiple repositories
+- You want faster startup (pre-built vs building at runtime)
 
 ## Best Practices
 

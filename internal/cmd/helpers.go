@@ -39,10 +39,10 @@ func resolveBaseImage(ctx context.Context, override string) string {
 	if override != "" {
 		return override
 	}
-	if cfg := ConfigFromContext(ctx); cfg != nil && cfg.Default.BaseImage != "" {
+	if cfg := ConfigFromContext(ctx); cfg != nil {
 		return cfg.Default.BaseImage
 	}
-	return config.DefaultBaseImage
+	return ""
 }
 
 func getInstanceByBranch(ctx context.Context, mgr *instance.Manager, branch, notFoundMsg string) (*instance.Instance, error) {

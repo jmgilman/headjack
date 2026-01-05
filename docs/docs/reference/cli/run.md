@@ -16,10 +16,10 @@ hjk run <branch> [prompt] [flags]
 
 ## Description
 
-Creates a new session within an instance for the specified branch. If no instance exists for the branch, one is created first by:
+Creates a new session within an instance for the specified branch. If no instance exists for the branch, one is created first. The container environment is determined by:
 
-- Creating a git worktree at the configured location
-- Spawning a new container with the worktree mounted
+1. **Devcontainer (default)**: If the repository contains a `devcontainer.json`, it is used to build and run the container environment automatically.
+2. **Base image**: Use `--image` to specify a container image directly, bypassing devcontainer detection.
 
 A new session is always created within the instance. If `--agent` is specified, the agent is started with an optional prompt. Otherwise, the default shell is started.
 
@@ -40,16 +40,16 @@ If an instance exists but is stopped, it is automatically restarted before creat
 |------|-------|------|---------|-------------|
 | `--agent` | | string | | Start the specified agent instead of a shell. Valid values: `claude`, `gemini`, `codex`. If specified without a value, uses the configured `default.agent`. |
 | `--name` | | string | | Override the auto-generated session name |
-| `--base` | | string | | Override the default base image |
+| `--image` | | string | | Use a container image instead of devcontainer |
 | `--detached` | `-d` | bool | `false` | Create session but do not attach (run in background) |
 
 ## Examples
 
 ```bash
-# Create instance with shell session
+# Auto-detect devcontainer.json (recommended)
 hjk run feat/auth
 
-# Create instance with Claude agent
+# Start Claude agent in devcontainer
 hjk run feat/auth --agent claude "Implement JWT authentication"
 
 # Create additional session in existing instance
@@ -62,8 +62,8 @@ hjk run feat/auth --name debug-shell
 hjk run feat/auth --agent claude -d "Refactor the auth module"
 hjk run feat/auth --agent claude -d "Write tests for auth module"
 
-# Use a custom base image
-hjk run feat/auth --base my-registry.io/custom-image:latest
+# Use a specific container image (bypasses devcontainer)
+hjk run feat/auth --image my-registry.io/custom-image:latest
 
 # Use default agent from config
 hjk run feat/auth --agent

@@ -6,22 +6,14 @@ description: Build a custom container image with project dependencies and use it
 
 # Build and Use Custom Images
 
-Create a custom image with your project's dependencies pre-installed for faster container startup, or use one of the official Headjack image variants.
+Create a custom image with your project's dependencies pre-installed for faster container startup.
 
-## Use an official variant
-
-Headjack provides three image variants:
-
-```bash
-# Base image (default) - minimal with agent CLIs
-hjk run feat/auth --base ghcr.io/gilmanlab/headjack:base
-
-# Systemd variant - includes init system
-hjk run feat/auth --base ghcr.io/gilmanlab/headjack:systemd
-
-# Docker-in-Docker variant - includes Docker daemon
-hjk run feat/auth --base ghcr.io/gilmanlab/headjack:dind
-```
+:::tip Prefer Devcontainers
+If your repository has a `devcontainer.json`, Headjack uses it automatically. You only need a custom image when:
+- Your repository doesn't have a devcontainer configuration
+- You want to share a pre-built image across multiple repositories
+- You need faster startup than devcontainer building provides
+:::
 
 ## Build a custom image
 
@@ -114,16 +106,16 @@ docker push ghcr.io/your-org/my-custom-headjack:latest
 
 ### Override for a single run
 
-Use the `--base` flag:
+Use the `--image` flag:
 
 ```bash
-hjk run feat/auth --base my-registry.io/my-custom-headjack:latest
+hjk run feat/auth --image my-registry.io/my-custom-headjack:latest
 ```
 
 Combine with `--agent`:
 
 ```bash
-hjk run feat/auth --base my-registry.io/my-custom-headjack:latest --agent claude "Implement the feature"
+hjk run feat/auth --image my-registry.io/my-custom-headjack:latest --agent claude "Implement the feature"
 ```
 
 ### Set as permanent default

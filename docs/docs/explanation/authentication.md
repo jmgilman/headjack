@@ -277,7 +277,7 @@ Currently, Headjack stores one set of credentials per agent type. Multi-account 
 
 ### Container Filesystem Persistence
 
-Once credentials are written inside a container, they persist until the container is recreated. A `hjk recreate` is needed to rotate credentials if they change on the host.
+Once credentials are written inside a container, they persist until the container is recreated. Use `hjk rm` followed by `hjk run` to recreate an instance if credentials change on the host.
 
 ### OAuth Token Expiry
 
@@ -299,7 +299,7 @@ The token may have expired:
 
 ```bash
 hjk auth claude  # Re-capture fresh credential
-hjk recreate <instance>  # Recreate container with new credentials
+hjk rm <instance> && hjk run <branch>  # Recreate instance with new credentials
 ```
 
 ### Claude onboarding prompt
@@ -312,7 +312,7 @@ To switch authentication methods, simply run `hjk auth` again and select the oth
 
 ```bash
 hjk auth claude  # Select option 2 for API key
-hjk recreate <instance>  # Recreate to use new credential type
+hjk rm <instance> && hjk run <branch>  # Recreate instance with new credential type
 ```
 
 ## Why Not SSH Agent Forwarding?

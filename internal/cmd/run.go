@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 
@@ -22,9 +23,13 @@ var runCmd = &cobra.Command{
 	Short: "Create a new session (and instance if needed), then attach",
 	Long: `Create a new session within an instance for the specified branch.
 
-If no instance exists for the branch, one is created first:
-  - Creates a git worktree at the configured location
-  - Spawns a new container with the worktree mounted
+If no instance exists for the branch, one is created first. The container
+environment is determined by:
+
+  1. Devcontainer (default): If the repository contains a devcontainer.json,
+     it is used to build and run the container environment automatically.
+  2. Base image: Use --image to specify a container image directly, bypassing
+     devcontainer detection.
 
 A new session is always created within the instance. If --agent is specified,
 the agent is started (with an optional prompt). Otherwise, the default shell
@@ -32,10 +37,10 @@ is started.
 
 Unless --detached is specified, the terminal attaches to the session.
 All session output is captured to a log file regardless of attached/detached mode.`,
-	Example: `  # New instance with shell session
+	Example: `  # Auto-detect devcontainer.json (recommended)
   headjack run feat/auth
 
-  # New instance with Claude agent
+  # Start Claude agent in devcontainer
   headjack run feat/auth --agent claude "Implement JWT authentication"
 
   # Additional session in existing instance
@@ -48,8 +53,8 @@ All session output is captured to a log file regardless of attached/detached mod
   headjack run feat/auth --agent claude -d "Refactor the auth module"
   headjack run feat/auth --agent claude -d "Write tests for auth module"
 
-  # Use a custom base image
-  headjack run feat/auth --base my-registry.io/custom-image:latest`,
+  # Use a specific container image (bypasses devcontainer)
+  headjack run feat/auth --image my-registry.io/custom-image:latest`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runRunCmd,
 }
@@ -57,7 +62,7 @@ All session output is captured to a log file regardless of attached/detached mod
 // runFlags holds parsed flags for the run command.
 type runFlags struct {
 	image         string
-	imageExplicit bool // true if --base was explicitly passed
+	imageExplicit bool // true if --image was explicitly passed
 	agent         string
 	sessionName   string
 	detached      bool
@@ -65,11 +70,11 @@ type runFlags struct {
 
 // parseRunFlags extracts and validates flags from the command.
 func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
-	image, err := cmd.Flags().GetString("base")
+	image, err := cmd.Flags().GetString("image")
 	if err != nil {
-		return nil, fmt.Errorf("get base flag: %w", err)
+		return nil, fmt.Errorf("get image flag: %w", err)
 	}
-	imageExplicit := cmd.Flags().Changed("base")
+	imageExplicit := cmd.Flags().Changed("image")
 
 	agent, err := cmd.Flags().GetString("agent")
 	if err != nil {
@@ -291,7 +296,10 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 	}
 
 	// Build create config - detect devcontainer mode if applicable
-	createCfg := buildCreateConfig(cmd, repoPath, branch, image, imageExplicit)
+	createCfg, err := buildCreateConfig(cmd, repoPath, branch, image, imageExplicit)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create new instance
 	inst, err = mgr.Create(cmd.Context(), repoPath, createCfg)
@@ -303,44 +311,75 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 	return inst, nil
 }
 
+// devcontainerCLI is the name of the devcontainer CLI binary.
+const devcontainerCLI = "devcontainer"
+
 // buildCreateConfig builds the instance creation config, detecting devcontainer mode if applicable.
 // Devcontainer mode is used when:
-//   - No --base flag was explicitly passed (imageExplicit is false)
+//   - No --image flag was explicitly passed (imageExplicit is false)
 //   - A devcontainer.json exists in the repo
-func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) instance.CreateConfig {
+//   - The devcontainer CLI is available
+//
+// Returns an error if no devcontainer.json is found and no image is configured.
+func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) (instance.CreateConfig, error) {
 	cfg := instance.CreateConfig{
 		Branch: branch,
 		Image:  image,
 	}
 
+	// Always check if devcontainer CLI is available and warn if not
+	devcontainerAvailable := isDevcontainerCLIAvailable()
+	if !devcontainerAvailable {
+		fmt.Println("Warning: devcontainer CLI not found in PATH")
+		fmt.Println("  Install with: npm install -g @devcontainers/cli")
+		fmt.Println("  See: https://github.com/devcontainers/cli")
+	}
+
 	// If image was explicitly passed, use vanilla mode
 	if imageExplicit {
-		return cfg
+		return cfg, nil
 	}
 
 	// Check for devcontainer.json
-	if !devcontainer.HasConfig(repoPath) {
-		return cfg
+	hasDevcontainer := devcontainer.HasConfig(repoPath)
+
+	if hasDevcontainer {
+		if !devcontainerAvailable {
+			// Devcontainer exists but CLI not available - error
+			return cfg, errors.New("devcontainer.json found but devcontainer CLI is not installed")
+		}
+
+		// Create devcontainer runtime wrapping the underlying runtime
+		runtimeName := runtimeNameDocker
+		if appCfg := ConfigFromContext(cmd.Context()); appCfg != nil && appCfg.Runtime.Name != "" {
+			runtimeName = appCfg.Runtime.Name
+		}
+		dcRuntime := createDevcontainerRuntime(cmd, runtimeName)
+		if dcRuntime == nil {
+			return cfg, errors.New("failed to create devcontainer runtime")
+		}
+
+		fmt.Println("Detected devcontainer.json, using devcontainer mode")
+
+		cfg.WorkspaceFolder = repoPath
+		cfg.Runtime = dcRuntime
+		cfg.Image = "" // Not needed in devcontainer mode
+
+		return cfg, nil
 	}
 
-	// Create devcontainer runtime wrapping the underlying runtime
-	runtimeName := runtimeNameDocker
-	if appCfg := ConfigFromContext(cmd.Context()); appCfg != nil && appCfg.Runtime.Name != "" {
-		runtimeName = appCfg.Runtime.Name
-	}
-	dcRuntime := createDevcontainerRuntime(cmd, runtimeName)
-	if dcRuntime == nil {
-		// Fall back to vanilla mode if we can't create the devcontainer runtime
-		return cfg
+	// No devcontainer.json - need an image
+	if image == "" {
+		return cfg, errors.New("no devcontainer.json found and no image configured\n\nTo fix this, either:\n  1. Add a devcontainer.json to your repository\n  2. Use --image to specify a container image\n  3. Set default.base_image in your config")
 	}
 
-	fmt.Println("Detected devcontainer.json, using devcontainer mode")
+	return cfg, nil
+}
 
-	cfg.WorkspaceFolder = repoPath
-	cfg.Runtime = dcRuntime
-	cfg.Image = "" // Not needed in devcontainer mode
-
-	return cfg
+// isDevcontainerCLIAvailable checks if the devcontainer CLI is in PATH.
+func isDevcontainerCLIAvailable() bool {
+	_, err := exec.LookPath(devcontainerCLI)
+	return err == nil
 }
 
 // createDevcontainerRuntime creates a DevcontainerRuntime wrapping the appropriate underlying runtime.
@@ -402,7 +441,7 @@ func init() {
 
 	runCmd.Flags().String("agent", "", "start an agent (claude, gemini, codex, or 'default' for configured default)")
 	runCmd.Flags().String("name", "", "override auto-generated session name")
-	runCmd.Flags().String("base", "", "override the default base image")
+	runCmd.Flags().String("image", "", "use a container image instead of devcontainer")
 	runCmd.Flags().BoolP("detached", "d", false, "create session but don't attach (run in background)")
 
 	agentFlag := runCmd.Flags().Lookup("agent")

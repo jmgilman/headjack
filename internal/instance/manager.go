@@ -555,56 +555,6 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
-// Recreate removes the container and creates a new one with the specified image.
-func (m *Manager) Recreate(ctx context.Context, id, image string) (*Instance, error) {
-	entry, err := m.catalog.Get(ctx, id)
-	if err != nil {
-		if errors.Is(err, catalog.ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get catalog entry: %w", err)
-	}
-
-	if shutdownErr := m.shutdownContainer(ctx, entry, shutdownContainerOpts{RemoveContainer: true}); shutdownErr != nil {
-		return nil, shutdownErr
-	}
-
-	// Create new container
-	containerName := m.containerName(entry.RepoID, entry.Branch)
-	c, err := m.runtime.Run(ctx, &container.RunConfig{
-		Name:  containerName,
-		Image: image,
-		Mounts: []container.Mount{
-			{Source: entry.Worktree, Target: "/workspace", ReadOnly: false},
-		},
-		Flags: flags.ToArgs(m.configFlags),
-	})
-	if err != nil {
-		entry.Status = catalog.StatusError
-		_ = m.catalog.Update(ctx, entry) //nolint:errcheck // best-effort status update
-		return nil, fmt.Errorf("create container: %w", err)
-	}
-
-	// Update catalog
-	entry.ContainerID = c.ID
-	entry.Status = catalog.StatusRunning
-	if err := m.catalog.Update(ctx, entry); err != nil {
-		return nil, fmt.Errorf("update catalog entry: %w", err)
-	}
-
-	return &Instance{
-		ID:          entry.ID,
-		Repo:        entry.Repo,
-		RepoID:      entry.RepoID,
-		Branch:      entry.Branch,
-		Worktree:    entry.Worktree,
-		ContainerID: c.ID,
-		Container:   c,
-		CreatedAt:   entry.CreatedAt,
-		Status:      StatusRunning,
-	}, nil
-}
-
 // Attach executes a command in an instance's container.
 // If the instance is stopped, it will be started first.
 func (m *Manager) Attach(ctx context.Context, id string, cfg AttachConfig) error {

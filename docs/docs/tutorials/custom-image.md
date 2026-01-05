@@ -226,17 +226,21 @@ Type `exit` to leave the container.
 
 ## Step 9: Use the Image with Headjack
 
-Now use your custom image with Headjack. Specify it with the `--base` flag:
+Now use your custom image with Headjack. Specify it with the `--image` flag:
 
 ```bash
-hjk run feat/new-feature --base my-app-headjack:latest --agent claude "Add user authentication using PostgreSQL sessions"
+hjk run feat/new-feature --image my-app-headjack:latest --agent claude "Add user authentication using PostgreSQL sessions"
 ```
 
 The agent starts immediately with all dependencies available. No waiting for Python or Node.js installation.
 
+:::note
+Using `--image` bypasses devcontainer detection. If your repository has a `devcontainer.json`, you typically don't need a custom image—just run `hjk run feat/new-feature` and the devcontainer will be used automatically.
+:::
+
 ## Step 10: Set as Default
 
-To avoid specifying `--base` every time, set your image as the default:
+To avoid specifying `--image` every time, set your image as the default:
 
 ```bash
 hjk config default.base_image my-app-headjack:latest

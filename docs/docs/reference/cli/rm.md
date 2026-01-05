@@ -63,4 +63,4 @@ Type `y` or `yes` to confirm, or any other input (including Enter) to cancel.
 
 - [hjk stop](stop.md) - Stop without removing
 - [hjk ps](ps.md) - List instances
-- [hjk recreate](recreate.md) - Recreate container without removing worktree
+- [hjk run](run.md) - Create a new instance

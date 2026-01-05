@@ -112,7 +112,7 @@ To switch between subscription and API key:
 
 ```bash
 hjk auth claude   # Select the other option
-hjk recreate my-feature   # Recreate container with new credentials
+hjk rm my-feature && hjk run my-feature   # Recreate instance with new credentials
 ```
 
 ## Notes

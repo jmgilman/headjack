@@ -120,10 +120,11 @@ hjk auth codex
 hjk auth <agent>  # Select option 2 and enter your API key
 ```
 
-After re-authenticating, recreate your instance:
+After re-authenticating, remove and recreate your instance to apply the new credentials:
 
 ```bash
-hjk recreate my-feature
+hjk rm my-feature
+hjk run my-feature
 ```
 
 ## Keychain Access Issues
@@ -209,7 +210,7 @@ To switch authentication methods:
 
 ```bash
 hjk auth claude  # Select the other option when prompted
-hjk recreate my-feature  # Apply new credentials to existing instance
+hjk rm my-feature && hjk run my-feature  # Recreate instance with new credentials
 ```
 
 ## Related

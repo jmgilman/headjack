@@ -9,13 +9,18 @@ exec git config user.name 'Test User'
 exec git commit --allow-empty -m 'initial commit'
 exec git branch test/kill-session
 
-# Create an instance with a named session
-exec hjk run test/kill-session -d --name my-session
-stdout 'Created'
+# Create an instance first
+exec hjk run test/kill-session
+stdout 'Instance .* ready'
 ! stderr .
 
 # Wait for container to be running
 wait_running test/kill-session
+
+# Create a named session using exec
+exec hjk exec test/kill-session -d --name my-session
+stdout 'Created'
+! stderr .
 
 # Verify the session exists
 exec hjk ps test/kill-session

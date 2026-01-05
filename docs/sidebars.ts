@@ -92,6 +92,8 @@ const sidebars: SidebarsConfig = {
           },
           items: [
             'reference/cli/run',
+            'reference/cli/agent',
+            'reference/cli/exec',
             'reference/cli/attach',
             'reference/cli/ps',
             'reference/cli/logs',

@@ -103,7 +103,7 @@ When running agent sessions, Headjack injects credential environment variables b
 | `CODEX_AUTH_JSON` | Subscription | OAuth credentials JSON from `~/.codex/auth.json` |
 | `OPENAI_API_KEY` | API Key | OpenAI API key for pay-per-use billing |
 
-These variables are set automatically when you run `hjk run --agent <agent>`. You configure which credential type to use via `hjk auth <agent>`.
+These variables are set automatically when you run `hjk agent`. You configure which credential type to use via `hjk auth <agent>`.
 
 ## Keyring Environment Variables
 

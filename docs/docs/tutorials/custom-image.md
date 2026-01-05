@@ -226,10 +226,11 @@ Type `exit` to leave the container.
 
 ## Step 9: Use the Image with Headjack
 
-Now use your custom image with Headjack. Specify it with the `--image` flag:
+Now use your custom image with Headjack. Specify it with the `--image` flag when creating the instance:
 
 ```bash
-hjk run feat/new-feature --image my-app-headjack:latest --agent claude "Add user authentication using PostgreSQL sessions"
+hjk run feat/new-feature --image my-app-headjack:latest
+hjk agent feat/new-feature claude "Add user authentication using PostgreSQL sessions"
 ```
 
 The agent starts immediately with all dependencies available. No waiting for Python or Node.js installation.
@@ -257,7 +258,8 @@ Add this to your shell profile (`.bashrc`, `.zshrc`) to make it permanent.
 Now all `hjk run` commands use your custom image automatically:
 
 ```bash
-hjk run feat/new-feature --agent claude "Add user authentication"
+hjk run feat/new-feature
+hjk agent feat/new-feature claude "Add user authentication"
 ```
 
 ## Step 11: Share with Your Team

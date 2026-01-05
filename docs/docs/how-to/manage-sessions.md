@@ -8,51 +8,81 @@ description: Start, monitor, and manage agent and shell sessions in isolated con
 
 This guide covers the complete session lifecycle: starting agent and shell sessions, attaching and detaching, and monitoring background sessions.
 
+## Create an instance first
+
+Before starting any sessions, create an instance for your branch:
+
+```bash
+hjk run feat/auth
+```
+
+This creates a git worktree for the branch and a container with the worktree mounted. The instance is now ready for sessions.
+
 ## Start an agent session
 
 Run an LLM coding agent (Claude, Gemini, or Codex) with a prompt:
 
 ```bash
-hjk run feat/auth --agent claude "Implement JWT authentication"
+hjk agent feat/auth claude "Implement JWT authentication"
 ```
 
-This creates a git worktree for the branch, a container with the worktree mounted, and starts the agent with your prompt. The terminal attaches automatically.
+The terminal attaches automatically to the agent session.
 
 ### Start without a prompt
 
 Run an agent in interactive mode:
 
 ```bash
-hjk run fix/header-bug --agent gemini
+hjk agent fix/header-bug gemini
 ```
 
 ### Choose an agent
 
-Specify the agent with `--agent`:
+Specify the agent as the second argument:
 
 ```bash
-hjk run feat/api --agent claude "Add rate limiting"
-hjk run feat/api --agent gemini "Add rate limiting"
-hjk run feat/api --agent codex "Add rate limiting"
+hjk agent feat/api claude "Add rate limiting"
+hjk agent feat/api gemini "Add rate limiting"
+hjk agent feat/api codex "Add rate limiting"
 ```
 
 ## Start a shell session
 
-Run an interactive shell without an agent:
+Run an interactive shell using `hjk exec`:
 
 ```bash
-hjk run feat/auth
+hjk exec feat/auth
 ```
 
-This creates the same isolated environment but drops you into a shell instead of starting an agent. Useful for manual debugging or running commands alongside agent sessions.
+This opens a bash shell inside the container. Useful for manual debugging or running commands alongside agent sessions.
+
+### Run a command
+
+Execute a specific command:
+
+```bash
+hjk exec feat/auth npm test
+hjk exec feat/auth npm run build
+```
+
+### Direct execution (no tmux)
+
+For quick commands without session persistence, use `--no-mux`:
+
+```bash
+hjk exec feat/auth --no-mux ls -la
+hjk exec feat/auth --no-mux pwd
+```
+
+This prints output directly to your terminal without creating a tmux session.
 
 ## Run in detached mode
 
 Start any session in the background with `-d`:
 
 ```bash
-hjk run feat/auth --agent claude -d "Refactor the auth module"
-hjk run feat/auth -d  # detached shell
+hjk agent feat/auth claude -d "Refactor the auth module"
+hjk exec feat/auth -d npm run build
 ```
 
 Use `hjk logs` or `hjk attach` to monitor or interact later.
@@ -62,9 +92,15 @@ Use `hjk logs` or `hjk attach` to monitor or interact later.
 Start multiple agents on different branches, each in its own isolated container:
 
 ```bash
-hjk run feat/auth --agent claude -d "Implement JWT authentication"
-hjk run feat/api --agent claude -d "Add rate limiting to the API"
-hjk run fix/header-bug --agent gemini -d "Fix the header rendering bug"
+# Create instances first
+hjk run feat/auth
+hjk run feat/api
+hjk run fix/header-bug
+
+# Then start agents in detached mode
+hjk agent feat/auth claude -d "Implement JWT authentication"
+hjk agent feat/api claude -d "Add rate limiting to the API"
+hjk agent fix/header-bug gemini -d "Fix the header rendering bug"
 ```
 
 Monitor all running instances:
@@ -78,9 +114,9 @@ hjk ps
 Run multiple agents within a single instance using `--name`:
 
 ```bash
-hjk run feat/auth --agent claude -d --name auth-impl "Implement the auth module"
-hjk run feat/auth --agent claude -d --name auth-tests "Write tests for the auth module"
-hjk run feat/auth --name debug-shell  # add a shell session
+hjk agent feat/auth claude -d --name auth-impl "Implement the auth module"
+hjk agent feat/auth claude -d --name auth-tests "Write tests for the auth module"
+hjk exec feat/auth --name debug-shell  # add a shell session
 ```
 
 All sessions share the same git worktree but run independently.
@@ -150,13 +186,14 @@ hjk logs feat/auth happy-panda --full   # complete log
 ### Custom session name
 
 ```bash
-hjk run feat/auth --agent claude --name jwt-implementation "Implement JWT"
+hjk agent feat/auth claude --name jwt-implementation "Implement JWT"
+hjk exec feat/auth --name build-session npm run build
 ```
 
 ### Custom container image
 
 ```bash
-hjk run feat/auth --agent claude --image my-registry.io/custom-image:latest
+hjk run feat/auth --image my-registry.io/custom-image:latest
 ```
 
 :::note
@@ -165,7 +202,7 @@ Using `--image` bypasses devcontainer detection. If your repository has a `devco
 
 ## Troubleshooting
 
-**"no sessions exist"** - No sessions are running. Start one with `hjk run`.
+**"no sessions exist"** - No sessions are running. Start one with `hjk agent` or `hjk exec`.
 
 **"no instance found for branch"** - The branch doesn't have an instance. Create one with `hjk run <branch>`.
 

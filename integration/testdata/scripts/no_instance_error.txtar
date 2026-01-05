@@ -1,0 +1,25 @@
+# Test error messages when no instance exists
+# This test verifies helpful hints are provided
+
+# Create a test git repository with unique name
+exec git init testrepo-noinstance
+cd testrepo-noinstance
+exec git config user.email 'test@example.com'
+exec git config user.name 'Test User'
+exec git commit --allow-empty -m 'initial commit'
+exec git branch test/no-instance
+
+# Verify no instances exist
+exec hjk ps
+stdout 'No instances found'
+! stderr .
+
+# Try to exec without an instance - should error with hint
+! exec hjk exec test/no-instance
+stderr 'no instance found'
+stderr 'hjk run'
+
+# Try to exec --no-mux without an instance - should error with hint
+! exec hjk exec test/no-instance --no-mux ls
+stderr 'no instance found'
+stderr 'hjk run'

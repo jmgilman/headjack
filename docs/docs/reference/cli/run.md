@@ -1,47 +1,50 @@
 ---
 sidebar_position: 1
 title: hjk run
-description: Create an instance and session for a branch
+description: Create an instance for a branch
 ---
 
 # hjk run
 
-Create a new session within an instance for a specified branch.
+Create a new instance (worktree + container) for a specified branch.
 
 ## Synopsis
 
 ```bash
-hjk run <branch> [prompt] [flags]
+hjk run <branch> [flags]
 ```
 
 ## Description
 
-Creates a new session within an instance for the specified branch. If no instance exists for the branch, one is created first. The container environment is determined by:
+Creates a new instance for the specified branch. An instance consists of:
+
+1. A git worktree for the branch
+2. A container with the worktree mounted at `/workspace`
+3. A catalog entry tracking the instance
+
+The container environment is determined by:
 
 1. **Devcontainer (default)**: If the repository contains a `devcontainer.json`, it is used to build and run the container environment automatically.
 2. **Base image**: Use `--image` to specify a container image directly, bypassing devcontainer detection.
 
-A new session is always created within the instance. If `--agent` is specified, the agent is started with an optional prompt. Otherwise, the default shell is started.
+This command only creates the instance. To start a session within the instance, use:
 
-Unless `--detached` is specified, the terminal attaches to the session. All session output is captured to a log file regardless of attached/detached mode.
+- [`hjk agent`](agent.md) - Start an agent session (Claude, Gemini, or Codex)
+- [`hjk exec`](exec.md) - Execute a command or start a shell session
 
-If an instance exists but is stopped, it is automatically restarted before creating the new session.
+If an instance already exists for the branch, it is reused. If the instance is stopped, it is automatically restarted.
 
 ## Arguments
 
 | Argument | Description |
 |----------|-------------|
 | `branch` | Git branch name for the instance (required) |
-| `prompt` | Instructions to pass to the agent (optional, only used with `--agent`) |
 
 ## Flags
 
-| Flag | Short | Type | Default | Description |
-|------|-------|------|---------|-------------|
-| `--agent` | | string | | Start the specified agent instead of a shell. Valid values: `claude`, `gemini`, `codex`. If specified without a value, uses the configured `default.agent`. |
-| `--name` | | string | | Override the auto-generated session name |
-| `--image` | | string | | Use a container image instead of devcontainer |
-| `--detached` | `-d` | bool | `false` | Create session but do not attach (run in background) |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--image` | string | | Use a container image instead of devcontainer |
 
 ## Examples
 
@@ -49,39 +52,43 @@ If an instance exists but is stopped, it is automatically restarted before creat
 # Auto-detect devcontainer.json (recommended)
 hjk run feat/auth
 
-# Start Claude agent in devcontainer
-hjk run feat/auth --agent claude "Implement JWT authentication"
-
-# Create additional session in existing instance
-hjk run feat/auth --agent gemini --name gemini-experiment
-
-# Create shell session with custom name
-hjk run feat/auth --name debug-shell
-
-# Create detached sessions (run in background)
-hjk run feat/auth --agent claude -d "Refactor the auth module"
-hjk run feat/auth --agent claude -d "Write tests for auth module"
-
 # Use a specific container image (bypasses devcontainer)
 hjk run feat/auth --image my-registry.io/custom-image:latest
 
-# Use default agent from config
-hjk run feat/auth --agent
+# Typical workflow: create instance, then start agent
+hjk run feat/auth
+hjk agent feat/auth claude "Implement JWT authentication"
+
+# Or start a shell session
+hjk run feat/auth
+hjk exec feat/auth
 ```
 
-## Authentication
+## Workflow
 
-When using an agent, the command requires authentication to be configured first:
+The typical workflow separates instance creation from session management:
 
-- **Claude**: Run `hjk auth claude` first
-- **Gemini**: Run `hjk auth gemini` first
-- **Codex**: Run `hjk auth codex` first
+```bash
+# Step 1: Create the instance
+hjk run feat/auth
 
-Authentication tokens are automatically injected into the container environment.
+# Step 2: Start an agent session
+hjk agent feat/auth claude "Your prompt here"
+
+# Step 3: Later, attach to the session
+hjk attach feat/auth
+```
+
+This separation allows you to:
+
+- Create instances without immediately starting sessions
+- Choose between agent sessions (`hjk agent`) or shell sessions (`hjk exec`)
+- Run quick commands without creating persistent sessions (`hjk exec --no-mux`)
 
 ## See Also
 
-- [hjk attach](attach.md) - Attach to an existing session
+- [hjk agent](agent.md) - Start an agent session
+- [hjk exec](exec.md) - Execute commands or start shell sessions
 - [hjk ps](ps.md) - List instances and sessions
-- [hjk logs](logs.md) - View session output
-- [hjk auth](auth.md) - Configure agent authentication
+- [hjk stop](stop.md) - Stop an instance
+- [hjk rm](rm.md) - Remove an instance

@@ -1,0 +1,38 @@
+# Test hjk exec --no-mux command for direct container execution
+# This test requires a container runtime
+
+# Create a test git repository with unique name
+exec git init testrepo-exec
+cd testrepo-exec
+exec git config user.email 'test@example.com'
+exec git config user.name 'Test User'
+exec git commit --allow-empty -m 'initial commit'
+exec git branch test/exec-nomux
+
+# Create an instance first
+exec hjk run test/exec-nomux
+stdout 'Instance .* ready'
+! stderr .
+
+# Wait for container to be running
+wait_running test/exec-nomux
+
+# Run a simple command with --no-mux (should print output directly)
+exec hjk exec test/exec-nomux --no-mux echo hello
+stdout 'hello'
+! stderr .
+
+# Run pwd to verify we're in the right directory
+exec hjk exec test/exec-nomux --no-mux pwd
+stdout '/'
+! stderr .
+
+# Verify no sessions were created (--no-mux bypasses tmux)
+exec hjk ps test/exec-nomux
+stdout 'No sessions found'
+! stderr .
+
+# Clean up
+exec hjk rm test/exec-nomux --force
+stdout 'Removed'
+! stderr .

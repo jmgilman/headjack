@@ -22,7 +22,7 @@ Running multiple AI coding agents simultaneously presents challenges: they can i
 
 ### Instance
 
-An **instance** is a running container environment tied to a specific git branch. When you create an instance, Headjack:
+An **instance** is a running container environment tied to a specific git branch. When you create an instance with `hjk run`, Headjack:
 
 1. Creates a git worktree for the branch
 2. Spawns a container with the worktree mounted at `/workspace`
@@ -32,7 +32,12 @@ Instances persist across sessions and can be stopped, started, or removed as nee
 
 ### Session
 
-A **session** is a terminal multiplexer pane running inside an instance. Each instance can have multiple sessions, allowing you to run an agent alongside a shell for debugging or run multiple agents with different prompts.
+A **session** is a terminal multiplexer pane running inside an instance. Sessions are created with:
+
+- `hjk agent` - Start an agent session (Claude, Gemini, or Codex)
+- `hjk exec` - Start a shell session or run commands
+
+Each instance can have multiple sessions, allowing you to run an agent alongside a shell for debugging or run multiple agents with different prompts.
 
 Sessions can run in attached mode (interactive) or detached mode (background).
 
@@ -49,22 +54,45 @@ Agents are authenticated via the `hjk auth` command before first use.
 ## Quick Example
 
 ```bash
-# Start Claude on a feature branch with a prompt
-hjk run feat/auth --agent claude "Implement JWT authentication"
+# Create an instance for the feature branch
+hjk run feat/auth
 
-# Run another agent in the background on the same branch
-hjk run feat/auth --agent claude -d "Write tests for the auth module"
+# Start Claude agent with a prompt
+hjk agent feat/auth claude "Implement JWT authentication"
+
+# Run another agent in the background on the same instance
+hjk agent feat/auth claude -d "Write tests for the auth module"
+
+# Start a shell session for debugging
+hjk exec feat/auth
 
 # List all running instances
-hjk ls
+hjk ps
 
 # Attach to an existing session
 hjk attach feat/auth
 ```
 
 :::tip
-The `hjk run` command is idempotent for instances: if an instance already exists for the branch, it creates a new session within it rather than a new instance.
+Instance creation (`hjk run`) is separate from session management (`hjk agent`, `hjk exec`). This gives you flexibility to create instances without immediately starting sessions, and to choose between agent or shell sessions.
 :::
+
+## Workflow Overview
+
+The typical Headjack workflow has three steps:
+
+```bash
+# Step 1: Create an instance
+hjk run feat/auth
+
+# Step 2: Start an agent or shell session
+hjk agent feat/auth claude "Your task description"
+
+# Step 3: Manage sessions
+hjk attach         # Reattach to session
+hjk logs feat/auth # View session output
+hjk ps feat/auth   # List sessions
+```
 
 ## Next Steps
 

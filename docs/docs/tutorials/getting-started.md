@@ -106,7 +106,7 @@ Credentials stored securely.
 
 The credential persists across sessions and only needs to be configured once.
 
-## Step 3: Create Your First Instance and Session
+## Step 3: Create Your First Instance
 
 Now we are ready to spawn an agent. Navigate to a git repository where you want the agent to work:
 
@@ -114,32 +114,48 @@ Now we are ready to spawn an agent. Navigate to a git repository where you want 
 cd ~/projects/my-app
 ```
 
-Create an instance and spawn Claude with a task:
+First, create an instance for your feature branch:
 
 ```bash
-hjk run feat/add-login --agent claude "Add a login page to the application"
+hjk run feat/add-login
+```
+
+This creates the isolated environment. You will see output like:
+
+```
+Created instance abc123 for branch feat/add-login
+Instance abc123 ready for branch feat/add-login
 ```
 
 Let us break down what happens:
 
 1. **Branch setup**: Headjack creates a git worktree for `feat/add-login` if it does not exist
 2. **Container creation**: A VM-isolated container is spawned with the worktree mounted at `/workspace`
-3. **Session creation**: A terminal session is created inside the container
-4. **Agent launch**: Claude Code starts with your prompt
-
-You will see output like:
-
-```
-Created instance abc123 for branch feat/add-login
-```
-
-Then your terminal attaches to the session, and you will see Claude Code starting up and beginning to work on your task.
+3. **Catalog entry**: The instance is tracked for later management
 
 :::note
 The first run may take a moment while the container image is pulled. Subsequent runs are faster.
 :::
 
-## Step 4: Interact with the Agent
+## Step 4: Start an Agent Session
+
+Now start Claude with your task:
+
+```bash
+hjk agent feat/add-login claude "Add a login page to the application"
+```
+
+This creates a session running Claude Code with your prompt. Your terminal attaches to the session, and you will see Claude Code starting up and beginning to work on your task.
+
+:::tip
+You can also start an agent without a prompt:
+```bash
+hjk agent feat/add-login claude
+```
+This launches Claude interactively, ready for you to type instructions.
+:::
+
+## Step 5: Interact with the Agent
 
 Once attached, you are in an interactive Claude Code session. The agent has full access to the repository files within its isolated environment.
 
@@ -161,7 +177,7 @@ Ctrl+B, then d
 
 This is the tmux detach shortcut. It returns you to your host terminal while the agent continues running in the background. All output is captured to a log file for later review.
 
-## Step 5: View and Manage Sessions
+## Step 6: View and Manage Sessions
 
 With the agent running in the background, let us explore session management.
 
@@ -192,7 +208,7 @@ Output:
 
 ```
 SESSION      TYPE    STATUS    CREATED   ACCESSED
-claude-main  claude  detached  2m ago    just now
+happy-panda  claude  detached  2m ago    just now
 ```
 
 ### Reattach to a Session
@@ -209,7 +225,17 @@ This attaches to the most recently accessed session for that branch. You can als
 hjk attach
 ```
 
-## Step 6: Stop and Clean Up
+### Start a Shell Session
+
+Need to debug or inspect files manually? Start a shell session:
+
+```bash
+hjk exec feat/add-login
+```
+
+This opens a bash shell inside the container. You can run this alongside your agent session.
+
+## Step 7: Stop and Clean Up
 
 When you are finished working on a feature, you have several options.
 
@@ -225,7 +251,7 @@ hjk stop feat/add-login
 Stopped instance abc123 for branch feat/add-login
 ```
 
-Stopped instances can be resumed later with `hjk run`. When you run a command against a stopped instance, Headjack automatically restarts it.
+Stopped instances can be resumed later. When you run a command against a stopped instance, Headjack automatically restarts it.
 
 ### Remove the Instance Entirely
 
@@ -252,9 +278,10 @@ Removing an instance deletes uncommitted changes in the worktree. Ensure you hav
 In this tutorial, we:
 
 - Installed Headjack and configured Claude Code authentication
-- Created an isolated instance tied to a feature branch
-- Spawned an agent session and interacted with Claude Code
+- Created an isolated instance tied to a feature branch with `hjk run`
+- Started an agent session with `hjk agent`
 - Detached from and reattached to running sessions
+- Started shell sessions with `hjk exec`
 - Stopped and removed instances when finished
 
 Each agent runs in complete isolation with its own container and worktree. This means you can safely run multiple agents on different branches without them interfering with each other.

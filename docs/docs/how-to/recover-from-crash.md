@@ -26,10 +26,10 @@ feat/api    running  2         1h ago
 
 ## Resume a stopped instance
 
-If the container stopped but the instance still exists, simply run a new session:
+If the container stopped but the instance still exists, simply start a new session:
 
 ```bash
-hjk run feat/auth --agent claude "Continue where we left off"
+hjk agent feat/auth claude "Continue where we left off"
 ```
 
 Headjack automatically restarts the container and creates a new session. Your git worktree is preserved with all previous work.
@@ -55,7 +55,7 @@ hjk kill feat/auth/stuck-session
 Then start a fresh session:
 
 ```bash
-hjk run feat/auth --agent claude
+hjk agent feat/auth claude
 ```
 
 ## Force remove a broken instance
@@ -69,7 +69,8 @@ hjk rm feat/auth --force
 This removes the instance from Headjack's catalog and cleans up the worktree. You can then start fresh:
 
 ```bash
-hjk run feat/auth --agent claude
+hjk run feat/auth
+hjk agent feat/auth claude
 ```
 
 ## Recover work from the worktree

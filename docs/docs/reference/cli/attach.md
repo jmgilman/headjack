@@ -22,7 +22,7 @@ Attaches to an existing session using a most-recently-used (MRU) strategy:
 - **Branch only**: Attach to the most recently accessed session for that instance
 - **Branch and session**: Attach to the specified session
 
-If no sessions exist for the resolved scope, the command displays an error suggesting `hjk run` to create one.
+If no sessions exist for the resolved scope, the command displays an error suggesting `hjk agent` or `hjk exec` to create one.
 
 To detach from a session without terminating it, use the tmux detach keybinding (`Ctrl+B, d`). This returns you to your host terminal while the session continues running.
 
@@ -56,6 +56,8 @@ The attach command tracks session access times and uses this to determine which 
 
 ## See Also
 
-- [hjk run](run.md) - Create a new session
+- [hjk run](run.md) - Create an instance
+- [hjk agent](agent.md) - Start an agent session
+- [hjk exec](exec.md) - Execute commands or start shell sessions
 - [hjk ps](ps.md) - List instances and sessions
 - [hjk kill](kill.md) - Kill a session

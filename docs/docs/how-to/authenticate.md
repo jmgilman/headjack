@@ -101,7 +101,8 @@ If not found:
 After authentication, verify by running an agent:
 
 ```bash
-hjk run my-feature --agent claude   # or gemini, codex
+hjk run feat/test
+hjk agent feat/test claude   # or gemini, codex
 ```
 
 The agent should authenticate without prompting for login.
@@ -112,7 +113,8 @@ To switch between subscription and API key:
 
 ```bash
 hjk auth claude   # Select the other option
-hjk rm my-feature && hjk run my-feature   # Recreate instance with new credentials
+hjk rm feat/test && hjk run feat/test   # Recreate instance with new credentials
+hjk agent feat/test claude
 ```
 
 ## Notes

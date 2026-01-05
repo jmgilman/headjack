@@ -16,10 +16,10 @@ Stop the container but preserve the worktree:
 hjk stop feat/auth
 ```
 
-The instance remains in the catalog. Resume it later by running any `hjk run` command for that branch:
+The instance remains in the catalog. Resume it later by running any command for that branch—Headjack automatically restarts stopped instances:
 
 ```bash
-hjk run feat/auth --agent claude "Continue working on auth"
+hjk agent feat/auth claude "Continue working on auth"
 ```
 
 ## Kill a specific session

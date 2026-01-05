@@ -39,7 +39,7 @@ WARNING: This deletes uncommitted work in the worktree.`,
 			return err
 		}
 
-		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q")
+		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch)
 		if err != nil {
 			return err
 		}

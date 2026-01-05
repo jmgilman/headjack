@@ -90,9 +90,11 @@ func runExecCmd(cmd *cobra.Command, args []string) error {
 
 	if flags.noMux {
 		// Direct execution (bypasses multiplexer entirely)
+		// Only use interactive mode when starting a shell (no command specified)
+		// Running a specific command doesn't need TTY allocation
 		return mgr.Attach(cmd.Context(), inst.ID, instance.AttachConfig{
-			Command:     cmdArgs, // Empty = shell
-			Interactive: true,
+			Command:     cmdArgs,           // Empty = shell
+			Interactive: len(cmdArgs) == 0, // Interactive only for shell
 		})
 	}
 

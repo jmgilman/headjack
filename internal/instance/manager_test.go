@@ -28,20 +28,20 @@ const (
 
 func TestNewManager(t *testing.T) {
 	t.Run("sets worktrees directory", func(t *testing.T) {
-		mgr := NewManager(nil, nil, nil, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
+		mgr := NewManager(nil, nil, nil, nil, &ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
 		require.NotNil(t, mgr)
 		assert.Equal(t, "/data/worktrees", mgr.worktreesDir)
 	})
 
 	t.Run("defaults RuntimeType to Docker when not specified", func(t *testing.T) {
-		mgr := NewManager(nil, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(nil, nil, nil, nil, &ManagerConfig{})
 
 		assert.Equal(t, RuntimeDocker, mgr.runtimeType)
 	})
 
 	t.Run("respects explicit RuntimeType", func(t *testing.T) {
-		mgr := NewManager(nil, nil, nil, nil, ManagerConfig{RuntimeType: RuntimePodman})
+		mgr := NewManager(nil, nil, nil, nil, &ManagerConfig{RuntimeType: RuntimePodman})
 
 		assert.Equal(t, RuntimePodman, mgr.runtimeType)
 	})
@@ -85,9 +85,9 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
+		mgr := NewManager(store, runtime, opener, nil, &ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
-		inst, err := mgr.Create(ctx, "/path/to/repo", CreateConfig{
+		inst, err := mgr.Create(ctx, "/path/to/repo", &CreateConfig{
 			Branch: "feature/auth",
 			Image:  "myimage:latest",
 		})
@@ -124,9 +124,9 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
+		mgr := NewManager(store, nil, opener, nil, &ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
-		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, &CreateConfig{Branch: "main"})
 
 		assert.ErrorIs(t, err, ErrAlreadyExists)
 	})
@@ -156,9 +156,9 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
+		mgr := NewManager(store, nil, opener, nil, &ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
-		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, &CreateConfig{Branch: "main"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "worktree error")
@@ -199,9 +199,9 @@ func TestManager_Create(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
+		mgr := NewManager(store, runtime, opener, nil, &ManagerConfig{WorktreesDir: "/data/worktrees", LogsDir: "/data/logs"})
 
-		_, err := mgr.Create(ctx, testRepoPath, CreateConfig{Branch: "main"})
+		_, err := mgr.Create(ctx, testRepoPath, &CreateConfig{Branch: "main"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "container error")
@@ -236,7 +236,7 @@ func TestManager_Get(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		inst, err := mgr.Get(ctx, "abc123")
 
@@ -253,7 +253,7 @@ func TestManager_Get(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.Get(ctx, "nonexistent")
 
@@ -293,7 +293,7 @@ func TestManager_GetByBranch(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, opener, nil, &ManagerConfig{})
 
 		inst, err := mgr.GetByBranch(ctx, "/path/to/repo", "main")
 
@@ -317,7 +317,7 @@ func TestManager_GetByBranch(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, opener, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, opener, nil, &ManagerConfig{})
 
 		_, err := mgr.GetByBranch(ctx, "/path/to/repo", "nonexistent")
 
@@ -346,7 +346,7 @@ func TestManager_List(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		instances, err := mgr.List(ctx, ListFilter{})
 
@@ -369,7 +369,7 @@ func TestManager_List(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		instances, err := mgr.List(ctx, ListFilter{Status: StatusRunning})
 
@@ -402,7 +402,7 @@ func TestManager_Stop(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		err := mgr.Stop(ctx, "abc123")
 
@@ -418,7 +418,7 @@ func TestManager_Stop(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		err := mgr.Stop(ctx, "nonexistent")
 
@@ -462,7 +462,7 @@ func TestManager_Remove(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, opener, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, opener, nil, &ManagerConfig{})
 
 		err := mgr.Remove(ctx, "abc123")
 
@@ -480,7 +480,7 @@ func TestManager_Remove(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		err := mgr.Remove(ctx, "nonexistent")
 
@@ -514,7 +514,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{
 			Command: []string{"bash", "-c", "echo hello"},
@@ -546,7 +546,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{})
 
@@ -571,7 +571,7 @@ func TestManager_Attach(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		err := mgr.Attach(ctx, "abc123", AttachConfig{})
 
@@ -652,7 +652,7 @@ func TestManager_CreateSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, mux, ManagerConfig{LogsDir: logsDir})
+		mgr := NewManager(store, runtime, nil, mux, &ManagerConfig{LogsDir: logsDir})
 
 		session, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{})
 
@@ -698,7 +698,7 @@ func TestManager_CreateSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, mux, ManagerConfig{LogsDir: logsDir})
+		mgr := NewManager(store, runtime, nil, mux, &ManagerConfig{LogsDir: logsDir})
 
 		session, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{Name: "my-session"})
 
@@ -724,7 +724,7 @@ func TestManager_CreateSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{Name: "existing-session"})
 
@@ -747,7 +747,7 @@ func TestManager_CreateSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, runtime, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, runtime, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.CreateSession(ctx, "abc12345", &CreateSessionConfig{})
 
@@ -761,7 +761,7 @@ func TestManager_CreateSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.CreateSession(ctx, "nonexistent", &CreateSessionConfig{})
 
@@ -786,7 +786,7 @@ func TestManager_GetSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		session, err := mgr.GetSession(ctx, "abc12345", "second-session")
 
@@ -806,7 +806,7 @@ func TestManager_GetSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetSession(ctx, "abc12345", "nonexistent")
 
@@ -820,7 +820,7 @@ func TestManager_GetSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetSession(ctx, "nonexistent", "any")
 
@@ -845,7 +845,7 @@ func TestManager_ListSessions(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		sessions, err := mgr.ListSessions(ctx, "abc12345")
 
@@ -865,7 +865,7 @@ func TestManager_ListSessions(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		sessions, err := mgr.ListSessions(ctx, "abc12345")
 
@@ -880,7 +880,7 @@ func TestManager_ListSessions(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.ListSessions(ctx, "nonexistent")
 
@@ -919,7 +919,7 @@ func TestManager_KillSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, mux, ManagerConfig{LogsDir: logsDir})
+		mgr := NewManager(store, nil, nil, mux, &ManagerConfig{LogsDir: logsDir})
 
 		err := mgr.KillSession(ctx, "abc12345", "my-session")
 
@@ -951,7 +951,7 @@ func TestManager_KillSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, mux, &ManagerConfig{})
 
 		err := mgr.KillSession(ctx, "abc12345", "my-session")
 
@@ -968,7 +968,7 @@ func TestManager_KillSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		err := mgr.KillSession(ctx, "abc12345", "nonexistent")
 
@@ -982,7 +982,7 @@ func TestManager_KillSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		err := mgr.KillSession(ctx, "nonexistent", "any")
 
@@ -1022,7 +1022,7 @@ func TestManager_AttachSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, mux, &ManagerConfig{})
 
 		err := mgr.AttachSession(ctx, "abc12345", "my-session")
 
@@ -1041,7 +1041,7 @@ func TestManager_AttachSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		err := mgr.AttachSession(ctx, "abc12345", "nonexistent")
 
@@ -1081,7 +1081,7 @@ func TestManager_AttachSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, mux, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, mux, &ManagerConfig{})
 
 		err := mgr.AttachSession(ctx, "abc12345", "my-session")
 
@@ -1111,7 +1111,7 @@ func TestManager_GetMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		session, err := mgr.GetMRUSession(ctx, "abc12345")
 
@@ -1129,7 +1129,7 @@ func TestManager_GetMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetMRUSession(ctx, "abc12345")
 
@@ -1143,7 +1143,7 @@ func TestManager_GetMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetMRUSession(ctx, "nonexistent")
 
@@ -1183,7 +1183,7 @@ func TestManager_GetGlobalMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		result, err := mgr.GetGlobalMRUSession(ctx)
 
@@ -1202,7 +1202,7 @@ func TestManager_GetGlobalMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetGlobalMRUSession(ctx)
 
@@ -1216,7 +1216,7 @@ func TestManager_GetGlobalMRUSession(t *testing.T) {
 			},
 		}
 
-		mgr := NewManager(store, nil, nil, nil, ManagerConfig{})
+		mgr := NewManager(store, nil, nil, nil, &ManagerConfig{})
 
 		_, err := mgr.GetGlobalMRUSession(ctx)
 

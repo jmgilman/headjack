@@ -14,7 +14,6 @@ import (
 	"github.com/jmgilman/headjack/internal/catalog"
 	"github.com/jmgilman/headjack/internal/container"
 	"github.com/jmgilman/headjack/internal/exec"
-	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/logging"
 	"github.com/jmgilman/headjack/internal/multiplexer"
@@ -73,7 +72,7 @@ type ManagerConfig struct {
 	WorktreesDir string        // Directory for storing worktrees (e.g., ~/.local/share/headjack/git)
 	LogsDir      string        // Directory for storing logs (e.g., ~/.local/share/headjack/logs)
 	RuntimeType  RuntimeType   // Container runtime type (docker or podman)
-	ConfigFlags  flags.Flags   // Flags from config file (take precedence over image labels)
+	ConfigFlags  []string      // Additional flags to pass to the container runtime
 	Executor     exec.Executor // Command executor (for devcontainer runtime creation)
 }
 
@@ -88,11 +87,11 @@ type Manager struct {
 	logPaths     *logging.PathManager
 	worktreesDir string
 	runtimeType  RuntimeType
-	configFlags  flags.Flags
+	configFlags  []string
 }
 
 // NewManager creates a new instance manager.
-func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, cfg ManagerConfig) *Manager {
+func NewManager(store catalogStore, runtime containerRuntime, opener gitOpener, mux sessionMultiplexer, cfg *ManagerConfig) *Manager {
 	runtimeType := cfg.RuntimeType
 	if runtimeType == "" {
 		runtimeType = RuntimeDocker
@@ -131,7 +130,7 @@ func (m *Manager) Executor() exec.Executor {
 }
 
 // Create creates a new instance for the given repository and branch.
-func (m *Manager) Create(ctx context.Context, repoPath string, cfg CreateConfig) (*Instance, error) {
+func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig) (*Instance, error) {
 	// Open the repository
 	repo, err := m.git.Open(ctx, repoPath)
 	if err != nil {
@@ -251,7 +250,11 @@ func (m *Manager) selectRuntime(override containerRuntime) containerRuntime {
 // buildRunConfig creates a container.RunConfig based on the creation mode.
 // For devcontainer mode (WorkspaceFolder set), it configures for devcontainer CLI.
 // For vanilla mode, it applies config flags.
-func (m *Manager) buildRunConfig(cfg CreateConfig, containerName, worktreePath string) *container.RunConfig {
+// CLI flags (from --) are appended after config flags for both modes.
+func (m *Manager) buildRunConfig(cfg *CreateConfig, containerName, worktreePath string) *container.RunConfig {
+	// Merge config flags with CLI flags (config first, CLI flags appended)
+	flags := m.mergeFlags(cfg.RuntimeFlags)
+
 	// Devcontainer mode: minimal config, devcontainer CLI handles the rest
 	if cfg.WorkspaceFolder != "" {
 		return &container.RunConfig{
@@ -260,18 +263,32 @@ func (m *Manager) buildRunConfig(cfg CreateConfig, containerName, worktreePath s
 			Mounts: []container.Mount{
 				{Source: worktreePath, Target: "/workspace", ReadOnly: false},
 			},
+			Flags: flags,
 		}
 	}
 
-	// Vanilla mode: use config flags only
+	// Vanilla mode: use merged flags
 	return &container.RunConfig{
 		Name:  containerName,
 		Image: cfg.Image,
 		Mounts: []container.Mount{
 			{Source: worktreePath, Target: "/workspace", ReadOnly: false},
 		},
-		Flags: flags.ToArgs(m.configFlags),
+		Flags: flags,
 	}
+}
+
+// mergeFlags combines config flags with CLI flags.
+// Config flags come first, CLI flags are appended (allowing override via runtime behavior).
+func (m *Manager) mergeFlags(cliFlags []string) []string {
+	if len(m.configFlags) == 0 && len(cliFlags) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(m.configFlags)+len(cliFlags))
+	result = append(result, m.configFlags...)
+	result = append(result, cliFlags...)
+	return result
 }
 
 // Get retrieves an instance by ID, including live container status.

@@ -14,7 +14,7 @@ import (
 )
 
 var agentCmd = &cobra.Command{
-	Use:   "agent <branch> [agent_name]",
+	Use:   "agent <branch> [agent_name] [-- <agent-flags>...]",
 	Short: "Start an agent session in an existing instance",
 	Long: `Start an agent session within an existing instance for the specified branch.
 
@@ -24,6 +24,8 @@ to it unless --detached is specified.
 
 If agent_name is not specified, the default agent from configuration is used.
 Set the default with 'hjk config default.agent <agent_name>'.
+
+Additional flags can be passed to the agent CLI by placing them after a -- separator.
 
 All session output is captured to a log file regardless of attached/detached mode.`,
 	Example: `  # Start default agent on existing instance
@@ -40,8 +42,11 @@ All session output is captured to a log file regardless of attached/detached mod
   hjk agent feat/auth gemini --name auth-session
 
   # Start agent in detached mode (run in background)
-  hjk agent feat/auth -d --prompt "Refactor the auth module"`,
-	Args: cobra.RangeArgs(1, 2),
+  hjk agent feat/auth -d --prompt "Refactor the auth module"
+
+  # Pass additional flags to the agent CLI
+  hjk agent feat/auth claude -- --dangerously-skip-permissions`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: runAgentCmd,
 }
 
@@ -50,10 +55,11 @@ type agentFlags struct {
 	sessionName string
 	detached    bool
 	prompt      string
+	agentFlags  []string // flags to pass to the agent CLI (after --)
 }
 
 // parseAgentFlags extracts and validates flags from the command.
-func parseAgentFlags(cmd *cobra.Command) (*agentFlags, error) {
+func parseAgentFlags(cmd *cobra.Command, args []string) (*agentFlags, error) {
 	sessionName, err := cmd.Flags().GetString("name")
 	if err != nil {
 		return nil, fmt.Errorf("get name flag: %w", err)
@@ -71,6 +77,7 @@ func parseAgentFlags(cmd *cobra.Command) (*agentFlags, error) {
 		sessionName: sessionName,
 		detached:    detached,
 		prompt:      prompt,
+		agentFlags:  parsePassthroughArgs(cmd, args),
 	}, nil
 }
 
@@ -136,17 +143,22 @@ func injectAuthCredential(agent string, cfg *instance.CreateSessionConfig) error
 }
 
 // buildAgentCommand builds the command for launching an agent.
-func buildAgentCommand(agent, prompt string) []string {
+// The command is: agent [prompt] [flags...]
+func buildAgentCommand(agent, prompt string, flags []string) []string {
 	cmd := []string{agent}
 	if prompt != "" {
 		cmd = append(cmd, prompt)
 	}
+	cmd = append(cmd, flags...)
 	return cmd
 }
 
 // resolveAgentName determines the agent name from args or config default.
-func resolveAgentName(ctx context.Context, args []string) (string, error) {
-	if len(args) > 1 {
+// dashIdx is the index of the -- separator (-1 if not present).
+func resolveAgentName(ctx context.Context, args []string, dashIdx int) (string, error) {
+	// Check if args[1] exists and is before the -- separator (or no separator)
+	hasAgentArg := len(args) > 1 && (dashIdx < 0 || dashIdx > 1)
+	if hasAgentArg {
 		return args[1], nil
 	}
 
@@ -173,12 +185,12 @@ func runAgentCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	flags, err := parseAgentFlags(cmd)
+	flags, err := parseAgentFlags(cmd, args)
 	if err != nil {
 		return err
 	}
 
-	agentName, err := resolveAgentName(cmd.Context(), args)
+	agentName, err := resolveAgentName(cmd.Context(), args, cmd.ArgsLenAtDash())
 	if err != nil {
 		return err
 	}
@@ -194,11 +206,18 @@ func runAgentCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid agent %q (valid: %s)", agentName, formatList(config.ValidAgentNames()))
 	}
 
+	// Merge config flags with CLI flags
+	var configFlags []string
+	if loader := LoaderFromContext(cmd.Context()); loader != nil {
+		configFlags = loader.GetAgentFlags(agentName)
+	}
+	mergedFlags := mergeFlags(configFlags, flags.agentFlags)
+
 	// Build session config
 	sessionCfg := &instance.CreateSessionConfig{
 		Type:    agentName,
 		Name:    flags.sessionName,
-		Command: buildAgentCommand(agentName, flags.prompt),
+		Command: buildAgentCommand(agentName, flags.prompt, mergedFlags),
 	}
 
 	// Inject agent-specific environment variables from config

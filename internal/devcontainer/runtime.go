@@ -58,6 +58,9 @@ func (r *Runtime) Run(ctx context.Context, cfg *container.RunConfig) (*container
 		"--docker-path", r.dockerPath,
 	}
 
+	// Append any additional flags (passed via --)
+	args = append(args, cfg.Flags...)
+
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: r.cliPath,
 		Args: args,
@@ -136,22 +139,14 @@ func (r *Runtime) Exec(ctx context.Context, id string, cfg *container.ExecConfig
 		return r.execInteractive(ctx, args)
 	}
 
-	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: r.cliPath,
-		Args: args,
+	// Non-interactive mode: connect stdout/stderr directly
+	_, err = r.exec.Run(ctx, &exec.RunOptions{
+		Name:   r.cliPath,
+		Args:   args,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	})
-	if err != nil {
-		stderr := ""
-		if result != nil {
-			stderr = strings.TrimSpace(string(result.Stderr))
-		}
-		if stderr != "" {
-			return fmt.Errorf("devcontainer exec: %s", stderr)
-		}
-		return fmt.Errorf("devcontainer exec: %w", err)
-	}
-
-	return nil
+	return err
 }
 
 // execInteractive runs a devcontainer exec command with TTY support.

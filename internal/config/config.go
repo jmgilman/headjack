@@ -69,7 +69,8 @@ type DefaultConfig struct {
 
 // AgentConfig holds agent-specific configuration.
 type AgentConfig struct {
-	Env map[string]string `mapstructure:"env"`
+	Env   map[string]string `mapstructure:"env"`
+	Flags []string          `mapstructure:"flags"`
 }
 
 // StorageConfig holds storage location configuration.
@@ -81,8 +82,8 @@ type StorageConfig struct {
 
 // RuntimeConfig holds container runtime configuration.
 type RuntimeConfig struct {
-	Name  string         `mapstructure:"name" validate:"omitempty,oneof=podman docker"`
-	Flags map[string]any `mapstructure:"flags"`
+	Name  string   `mapstructure:"name" validate:"omitempty,oneof=podman docker"`
+	Flags []string `mapstructure:"flags"`
 }
 
 // DevcontainerConfig holds devcontainer CLI configuration.
@@ -152,10 +153,13 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("storage.catalog", "~/.local/share/headjack/catalog.json")
 	l.v.SetDefault("storage.logs", "~/.local/share/headjack/logs")
 	l.v.SetDefault("agents.claude.env", map[string]string{"CLAUDE_CODE_MAX_TURNS": "100"})
+	l.v.SetDefault("agents.claude.flags", []string{})
 	l.v.SetDefault("agents.gemini.env", map[string]string{})
+	l.v.SetDefault("agents.gemini.flags", []string{})
 	l.v.SetDefault("agents.codex.env", map[string]string{})
+	l.v.SetDefault("agents.codex.flags", []string{})
 	l.v.SetDefault("runtime.name", "docker")
-	l.v.SetDefault("runtime.flags", map[string]any{})
+	l.v.SetDefault("runtime.flags", []string{})
 	l.v.SetDefault("devcontainer.path", "")
 }
 
@@ -209,6 +213,13 @@ func (l *Loader) GetAgentEnv(agent string) map[string]string {
 		return make(map[string]string)
 	}
 	return raw
+}
+
+// GetAgentFlags returns the CLI flags for a specific agent.
+// Returns nil if the agent has no flags configuration.
+func (l *Loader) GetAgentFlags(agent string) []string {
+	key := fmt.Sprintf("agents.%s.flags", agent)
+	return l.v.GetStringSlice(key)
 }
 
 // Set sets a configuration value by dot-notation key.

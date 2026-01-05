@@ -13,7 +13,7 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run <branch>",
+	Use:   "run <branch> [-- <runtime-flags>...]",
 	Short: "Create a new instance for the specified branch",
 	Long: `Create a new instance (worktree + container) for the specified branch.
 
@@ -25,6 +25,9 @@ stopped). The container environment is determined by:
   2. Base image: Use --image to specify a container image directly, bypassing
      devcontainer detection.
 
+Additional flags can be passed to the container runtime (or devcontainer CLI)
+by placing them after a -- separator.
+
 This command only creates the instance. To start a session, use:
   - 'hjk agent <branch> <agent>' to start an agent session
   - 'hjk exec <branch>' to start a shell session`,
@@ -34,21 +37,25 @@ This command only creates the instance. To start a session, use:
   # Use a specific container image (bypasses devcontainer)
   hjk run feat/auth --image my-registry.io/custom-image:latest
 
+  # Pass additional flags to the container runtime
+  hjk run feat/auth -- --memory=4g --privileged
+
   # Typical workflow: create instance, then start agent
   hjk run feat/auth
   hjk agent feat/auth claude --prompt "Implement JWT authentication"`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	RunE: runRunCmd,
 }
 
 // runFlags holds parsed flags for the run command.
 type runFlags struct {
 	image         string
-	imageExplicit bool // true if --image was explicitly passed
+	imageExplicit bool     // true if --image was explicitly passed
+	runtimeFlags  []string // flags to pass to the container runtime (after --)
 }
 
 // parseRunFlags extracts and validates flags from the command.
-func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
+func parseRunFlags(cmd *cobra.Command, args []string) (*runFlags, error) {
 	image, err := cmd.Flags().GetString("image")
 	if err != nil {
 		return nil, fmt.Errorf("get image flag: %w", err)
@@ -60,6 +67,7 @@ func parseRunFlags(cmd *cobra.Command) (*runFlags, error) {
 	return &runFlags{
 		image:         image,
 		imageExplicit: imageExplicit,
+		runtimeFlags:  parsePassthroughArgs(cmd, args),
 	}, nil
 }
 
@@ -71,7 +79,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	flags, err := parseRunFlags(cmd)
+	flags, err := parseRunFlags(cmd, args)
 	if err != nil {
 		return err
 	}
@@ -81,7 +89,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	inst, err := getOrCreateInstance(cmd, mgr, repoPath, branch, flags.image, flags.imageExplicit)
+	inst, err := getOrCreateInstance(cmd, mgr, repoPath, branch, flags)
 	if err != nil {
 		return err
 	}
@@ -93,7 +101,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 // getOrCreateInstance retrieves an existing instance or creates a new one.
 // If the instance exists but is stopped, it restarts the container.
 // If imageExplicit is false and a devcontainer.json exists, devcontainer mode is used.
-func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch, image string, imageExplicit bool) (*instance.Instance, error) {
+func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch string, flags *runFlags) (*instance.Instance, error) {
 	// Try to get existing instance
 	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
 	if err == nil {
@@ -116,13 +124,13 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 	}
 
 	// Build create config - detect devcontainer mode if applicable
-	createCfg, err := buildCreateConfig(cmd, repoPath, branch, image, imageExplicit)
+	createCfg, err := buildCreateConfig(cmd, repoPath, branch, flags)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create new instance
-	inst, err = mgr.Create(cmd.Context(), repoPath, createCfg)
+	inst, err = mgr.Create(cmd.Context(), repoPath, &createCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create instance: %w", err)
 	}
@@ -138,14 +146,15 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 //   - The devcontainer CLI is available (or can be installed)
 //
 // Returns an error if no devcontainer.json is found and no image is configured.
-func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) (instance.CreateConfig, error) {
+func buildCreateConfig(cmd *cobra.Command, repoPath, branch string, flags *runFlags) (instance.CreateConfig, error) {
 	cfg := instance.CreateConfig{
-		Branch: branch,
-		Image:  image,
+		Branch:       branch,
+		Image:        flags.image,
+		RuntimeFlags: flags.runtimeFlags,
 	}
 
 	// If image was explicitly passed, use vanilla mode
-	if imageExplicit {
+	if flags.imageExplicit {
 		return cfg, nil
 	}
 
@@ -190,7 +199,7 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, image
 	}
 
 	// No devcontainer.json - need an image
-	if image == "" {
+	if flags.image == "" {
 		return cfg, errors.New("no devcontainer.json found and no image configured\n\nTo fix this, either:\n  1. Add a devcontainer.json to your repository\n  2. Use --image to specify a container image\n  3. Set default.base_image in your config")
 	}
 

@@ -73,6 +73,29 @@ func formatNotRunningHint(cmd *cobra.Command, err *instance.NotRunningError) str
 	return fmt.Sprintf("container %s is %s; check logs with `%s`", err.ContainerID, err.Status, logsCmd)
 }
 
+// parsePassthroughArgs extracts arguments after the -- separator from a cobra command.
+// Returns nil if no -- separator was used.
+func parsePassthroughArgs(cmd *cobra.Command, args []string) []string {
+	dashIdx := cmd.ArgsLenAtDash()
+	if dashIdx < 0 || dashIdx >= len(args) {
+		return nil
+	}
+	return args[dashIdx:]
+}
+
+// mergeFlags combines base flags with additional flags.
+// Base flags come first, additional flags are appended.
+// Returns nil if both inputs are empty.
+func mergeFlags(base, additional []string) []string {
+	if len(base) == 0 && len(additional) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(base)+len(additional))
+	result = append(result, base...)
+	result = append(result, additional...)
+	return result
+}
+
 // getInstanceByBranch gets an existing instance by branch, returning an error with hint if not found.
 // If the instance is stopped, it will be automatically restarted.
 func getInstanceByBranch(ctx context.Context, mgr *instance.Manager, branch string) (*instance.Instance, error) {

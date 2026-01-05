@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
@@ -128,7 +129,14 @@ func (t *tmux) AttachSession(ctx context.Context, sessionName string) error {
 	if err != nil {
 		return fmt.Errorf("set terminal raw mode: %w", err)
 	}
-	defer func() { _ = term.Restore(stdinFd, oldState) }()
+	defer func() {
+		// Drain stdin with timeout BEFORE restoring terminal mode.
+		// This catches in-flight terminal responses (escape sequences) that
+		// arrive asynchronously after tmux exits for short-lived sessions.
+		// We do this while still in raw mode so responses are consumed properly.
+		drainStdinWithTimeout(stdinFd, 100*time.Millisecond)
+		_ = term.Restore(stdinFd, oldState)
+	}()
 
 	// Handle window resize signals
 	sigCh := make(chan os.Signal, 1)
@@ -221,4 +229,29 @@ func shellEscape(s string) string {
 	// and start a new quoted string: 'foo'\''bar' -> foo'bar
 	escaped := strings.ReplaceAll(s, "'", `'\''`)
 	return "'" + escaped + "'"
+}
+
+// drainStdinWithTimeout reads and discards input from stdin for the specified duration.
+// This is used to consume stray terminal escape sequence responses that arrive
+// asynchronously after tmux exits. The timeout allows in-flight responses to arrive.
+func drainStdinWithTimeout(fd int, timeout time.Duration) {
+	// Set stdin to non-blocking temporarily
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		return
+	}
+	//nolint:errcheck // best-effort cleanup
+	defer func() { _ = syscall.SetNonblock(fd, false) }()
+
+	deadline := time.Now().Add(timeout)
+	buf := make([]byte, 1024)
+
+	for time.Now().Before(deadline) {
+		//nolint:errcheck // best-effort drain, errors expected when no data
+		n, _ := syscall.Read(fd, buf)
+		if n <= 0 {
+			// No data available, wait briefly and try again
+			time.Sleep(10 * time.Millisecond)
+		}
+		// If we read data, continue immediately to drain more
+	}
 }

@@ -63,6 +63,7 @@ type CreateConfig struct {
 	Image           string            // OCI image to use for container (vanilla mode)
 	WorkspaceFolder string            // Path to folder with devcontainer.json (devcontainer mode)
 	Runtime         container.Runtime // Optional runtime override (for devcontainer)
+	RuntimeFlags    []string          // Additional flags to pass to the container runtime
 }
 
 // AttachConfig configures instance attachment.

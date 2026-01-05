@@ -17,7 +17,6 @@ import (
 	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/container"
 	hjexec "github.com/jmgilman/headjack/internal/exec"
-	"github.com/jmgilman/headjack/internal/flags"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
@@ -178,17 +177,11 @@ func initManager() error {
 	// Map runtime name to RuntimeType
 	runtimeType := runtimeNameToType(runtimeName)
 
-	// Parse config flags
-	configFlags, err := getConfigFlags()
-	if err != nil {
-		return err
-	}
-
-	mgr = instance.NewManager(store, runtime, opener, mux, instance.ManagerConfig{
+	mgr = instance.NewManager(store, runtime, opener, mux, &instance.ManagerConfig{
 		WorktreesDir: worktreesDir,
 		LogsDir:      logsDir,
 		RuntimeType:  runtimeType,
-		ConfigFlags:  configFlags,
+		ConfigFlags:  getConfigFlags(),
 		Executor:     executor,
 	})
 
@@ -205,16 +198,12 @@ func runtimeNameToType(name string) instance.RuntimeType {
 	}
 }
 
-// getConfigFlags parses runtime flags from config.
-func getConfigFlags() (flags.Flags, error) {
-	if appConfig == nil || appConfig.Runtime.Flags == nil {
-		return make(flags.Flags), nil
+// getConfigFlags returns runtime flags from config.
+func getConfigFlags() []string {
+	if appConfig == nil {
+		return nil
 	}
-	configFlags, err := flags.FromConfig(appConfig.Runtime.Flags)
-	if err != nil {
-		return nil, fmt.Errorf("parse runtime flags: %w", err)
-	}
-	return configFlags, nil
+	return appConfig.Runtime.Flags
 }
 
 // formatList joins strings with commas and "and" before the last item.

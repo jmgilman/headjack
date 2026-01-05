@@ -195,6 +195,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig
 
 	// Build container run config based on mode (devcontainer vs vanilla)
 	runCfg := m.buildRunConfig(cfg, containerName, worktreePath)
+	runCfg.Stderr = cfg.Stderr // Pass through stderr writer for progress output
 
 	// Create container
 	log.Debug("creating container", slog.String("name", containerName), slog.String("image", cfg.Image))

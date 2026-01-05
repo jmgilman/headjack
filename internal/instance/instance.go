@@ -4,6 +4,7 @@ package instance
 import (
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/jmgilman/headjack/internal/container"
@@ -64,6 +65,7 @@ type CreateConfig struct {
 	WorkspaceFolder string            // Path to folder with devcontainer.json (devcontainer mode)
 	Runtime         container.Runtime // Optional runtime override (for devcontainer)
 	RuntimeFlags    []string          // Additional flags to pass to the container runtime
+	Stderr          io.Writer         // Optional: stream stderr during creation (for progress output)
 }
 
 // AttachConfig configures instance attachment.

@@ -56,8 +56,9 @@ func (r *baseRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, erro
 	args := buildRunArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: r.binaryName,
-		Args: args,
+		Name:   r.binaryName,
+		Args:   args,
+		Stderr: cfg.Stderr, // Stream stderr if writer provided (for progress output)
 	})
 	if err != nil {
 		stderr := string(result.Stderr)

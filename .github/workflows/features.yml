@@ -58,7 +58,7 @@ jobs:
       - name: Test feature
         run: |
           devcontainer features test \
-            --features ./images/features/src/${{ matrix.feature }} \
+            --features ${{ matrix.feature }} \
             --base-image mcr.microsoft.com/devcontainers/base:ubuntu \
             --project-folder ./images/features
 

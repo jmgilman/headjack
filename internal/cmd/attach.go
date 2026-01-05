@@ -68,7 +68,7 @@ func attachGlobalMRU(cmd *cobra.Command, mgr *instance.Manager) error {
 
 // attachInstanceMRU attaches to the most recently accessed session for a specific instance.
 func attachInstanceMRU(cmd *cobra.Command, mgr *instance.Manager, branch string) error {
-	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q (use 'hjk run' to create one)")
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func attachInstanceMRU(cmd *cobra.Command, mgr *instance.Manager, branch string)
 
 // attachExplicitSession attaches to a specific session by name.
 func attachExplicitSession(cmd *cobra.Command, mgr *instance.Manager, branch, sessionName string) error {
-	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q (use 'hjk run' to create one)")
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch)
 	if err != nil {
 		return err
 	}

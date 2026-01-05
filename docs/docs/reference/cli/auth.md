@@ -16,7 +16,7 @@ hjk auth <subcommand>
 
 ## Description
 
-Configures agent authentication and stores credentials securely in the system keychain. These credentials are automatically injected into containers when running agents with `hjk run --agent`.
+Configures agent authentication and stores credentials securely in the system keychain. These credentials are automatically injected into containers when running agents with `hjk agent`.
 
 Each agent supports two authentication methods:
 
@@ -150,5 +150,6 @@ When injected into containers, credentials are set via environment variables:
 
 ## See Also
 
-- [hjk run](run.md) - Use authenticated agents with `--agent` flag
+- [hjk agent](agent.md) - Start agent sessions using stored credentials
+- [hjk run](run.md) - Create instances for running agents
 - [Authentication](../../explanation/authentication.md) - How credential storage works

@@ -1,4 +1,4 @@
-# Test hjk run with detached mode and full instance lifecycle
+# Test hjk run, exec, and full instance lifecycle
 # This test requires a container runtime
 
 # Create a test git repository with unique name
@@ -16,19 +16,29 @@ exec hjk ps
 stdout 'No instances found'
 ! stderr .
 
-# Run instance in detached mode with shell session
-exec hjk run test/integration-lifecycle -d
-stdout 'Created instance'
-stdout 'detached'
+# Create instance (no session - just worktree + container)
+exec hjk run test/integration-lifecycle
+stdout 'Instance .* ready for branch'
 ! stderr .
 
 # Wait for container to be running
 wait_running test/integration-lifecycle
 
-# Verify instance is listed and running
+# Verify instance is listed and running (with 0 sessions)
 exec hjk ps
 stdout 'test/integration-lifecycle'
 stdout 'running'
+! stderr .
+
+# Verify no sessions exist yet
+exec hjk ps test/integration-lifecycle
+stdout 'No sessions found'
+! stderr .
+
+# Create a shell session in detached mode using exec
+exec hjk exec test/integration-lifecycle -d
+stdout 'Created session'
+stdout 'detached'
 ! stderr .
 
 # List sessions for the instance

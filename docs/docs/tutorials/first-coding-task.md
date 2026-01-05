@@ -50,23 +50,32 @@ Throw descriptive errors for invalid input.
 Add unit tests for the validation logic.
 ```
 
-## Step 3: Launch the Agent
+## Step 3: Create the Instance
 
-Create an instance and start the agent with your task:
+First, create an instance for your feature branch:
 
 ```bash
-hjk run feat/user-validation --agent claude "Add input validation to the createUser function in src/users.js. Validate that email is a valid format and name is non-empty. Throw descriptive errors for invalid input. Add unit tests for the validation logic."
+hjk run feat/user-validation
 ```
 
 You will see output indicating the instance was created:
 
 ```
 Created instance abc123 for branch feat/user-validation
+Instance abc123 ready for branch feat/user-validation
 ```
 
-Then your terminal attaches to the Claude session. Watch as Claude begins working.
+## Step 4: Launch the Agent
 
-## Step 4: Observe the Agent Working
+Now start Claude with your task:
+
+```bash
+hjk agent feat/user-validation claude --prompt "Add input validation to the createUser function in src/users.js. Validate that email is a valid format and name is non-empty. Throw descriptive errors for invalid input. Add unit tests for the validation logic."
+```
+
+Your terminal attaches to the Claude session. Watch as Claude begins working.
+
+## Step 5: Observe the Agent Working
 
 Claude will start by analyzing your codebase. You will see it:
 
@@ -86,7 +95,7 @@ specific to user creation?
 
 Answer questions to guide the agent toward your preferred solution.
 
-## Step 5: Detach and Monitor
+## Step 6: Detach and Monitor
 
 If Claude is working independently and you want to do other work, detach from the session:
 
@@ -123,7 +132,7 @@ hjk logs feat/user-validation happy-panda -f
 
 Press `Ctrl+C` to stop following.
 
-## Step 6: Reattach and Review
+## Step 7: Reattach and Review
 
 When you are ready to check on Claude directly, reattach:
 
@@ -133,7 +142,7 @@ hjk attach feat/user-validation
 
 If Claude has finished, you will see a summary of what it accomplished. If it is still working, you can watch it continue or provide additional guidance.
 
-## Step 7: Review the Changes
+## Step 8: Review the Changes
 
 Once Claude indicates it has completed the task, review what it produced. Detach from the session if attached:
 
@@ -160,12 +169,12 @@ npm test
 Alternatively, start a shell session in the same instance to explore:
 
 ```bash
-hjk run feat/user-validation --name review-shell
+hjk exec feat/user-validation
 ```
 
 This opens a shell in the same container where the agent worked. You can run commands, inspect files, and verify the changes.
 
-## Step 8: Iterate if Needed
+## Step 9: Iterate if Needed
 
 If the changes need adjustments, you have several options:
 
@@ -184,13 +193,13 @@ The email validation looks good, but please also check for maximum
 length (255 characters) and add a test case for that.
 ```
 
-**Option B: Start a new session with corrections**
+**Option B: Start a new agent session with corrections**
 
 ```bash
-hjk run feat/user-validation --agent claude "The email validation in createUser needs one adjustment: also validate maximum length of 255 characters. Add a test for this case."
+hjk agent feat/user-validation claude --prompt "The email validation in createUser needs one adjustment: also validate maximum length of 255 characters. Add a test for this case."
 ```
 
-## Step 9: Commit the Work
+## Step 10: Commit the Work
 
 When you are satisfied with the changes, commit them. You can do this from your host terminal after checking out the branch, or ask Claude to commit:
 
@@ -212,7 +221,7 @@ git add -A
 git commit -m "feat(users): add input validation to createUser"
 ```
 
-## Step 10: Clean Up
+## Step 11: Clean Up
 
 Stop the instance when you are finished:
 
@@ -231,9 +240,11 @@ hjk rm feat/user-validation
 In this tutorial, we:
 
 - Wrote an effective prompt with context, goals, and constraints
-- Launched an agent with a real coding task
+- Created an instance with `hjk run`
+- Launched an agent session with `hjk agent` and a real coding task
 - Observed how Claude analyzes code and implements changes
 - Monitored background work using logs
+- Started a shell session with `hjk exec` to inspect changes
 - Reviewed changes in the git worktree
 - Iterated on the results with follow-up instructions
 

@@ -62,7 +62,7 @@ func runLogsCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "")
+	inst, err := getInstanceByBranch(cmd.Context(), mgr, branch)
 	if err != nil {
 		return err
 	}

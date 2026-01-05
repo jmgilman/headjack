@@ -22,7 +22,7 @@ The worktree is preserved and the instance can be resumed later with 'hjk run'.`
 			return err
 		}
 
-		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch, "no instance found for branch %q")
+		inst, err := getInstanceByBranch(cmd.Context(), mgr, branch)
 		if err != nil {
 			return err
 		}

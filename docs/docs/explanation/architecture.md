@@ -16,7 +16,7 @@ An **instance** is Headjack's central concept. It represents a complete, isolate
 - A **container** that provides an isolated execution environment
 - One or more **sessions** that provide persistent terminal access
 
-When you run `hjk run feature-branch`, Headjack creates an instance by wiring these three components together. The instance remains linked to your repository and branch throughout its lifecycle.
+When you run `hjk run feature-branch`, Headjack creates the instance (worktree and container). Then `hjk agent` or `hjk exec` creates sessions within that instance. The instance remains linked to your repository and branch throughout its lifecycle.
 
 import ThemedImage from '@theme/ThemedImage';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -68,7 +68,9 @@ The session abstraction allows agents and shells to coexist. A typical workflow 
 
 ## The Data Flow
 
-When you run a command like `hjk run feature-branch`, here's how data flows through the system:
+Instance creation and session management are separate operations.
+
+### Creating an Instance (`hjk run`)
 
 1. **Repository identification**: Headjack opens your git repository and computes a stable identifier from the remote URL or path
 
@@ -76,11 +78,15 @@ When you run a command like `hjk run feature-branch`, here's how data flows thro
 
 3. **Container launch**: A container starts with the worktree mounted at `/workspace`. The container runs `sleep infinity` as its init process, keeping it alive indefinitely
 
-4. **Session creation**: A tmux session starts inside the container, running the specified agent CLI (or shell)
+4. **Catalog persistence**: The instance metadata is written to `~/.local/share/headjack/catalog.json`
 
-5. **Catalog persistence**: The instance metadata is written to `~/.local/share/headjack/catalog.json`
+### Starting Sessions (`hjk agent` / `hjk exec`)
 
-6. **Terminal attachment**: Your terminal attaches to the tmux session
+1. **Instance lookup**: Headjack finds the instance for the specified branch
+
+2. **Session creation**: A tmux session starts inside the container, running the specified agent CLI or shell
+
+3. **Terminal attachment**: Your terminal attaches to the tmux session (unless `-d` detached mode is used)
 
 When you detach (Ctrl+B, D), the session continues running in the container. The agent keeps working. When you `hjk attach` later, you reconnect to that same session and see everything that happened while you were away.
 

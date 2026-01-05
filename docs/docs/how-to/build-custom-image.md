@@ -112,10 +112,10 @@ Use the `--image` flag:
 hjk run feat/auth --image my-registry.io/my-custom-headjack:latest
 ```
 
-Combine with `--agent`:
+Then start an agent session:
 
 ```bash
-hjk run feat/auth --image my-registry.io/my-custom-headjack:latest --agent claude "Implement the feature"
+hjk agent feat/auth claude --prompt "Implement the feature"
 ```
 
 ### Set as permanent default

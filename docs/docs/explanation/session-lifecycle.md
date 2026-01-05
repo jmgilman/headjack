@@ -24,31 +24,44 @@ The session abstraction provides:
 
 ## Session Creation
 
-When you run `hjk run feature-branch`, Headjack creates both an instance and an initial session:
+Sessions are created separately from instances. First, `hjk run` creates the instance:
 
 ```
 +------------------------------------------------------------+
 |                    hjk run                                 |
 |                       |                                    |
 |         +-------------+-------------+                      |
-|         v             v             v                      |
-|   Create worktree   Launch     Create session              |
-|                    container        |                      |
-|         |             |             |                      |
+|         v                           v                      |
+|   Create worktree             Launch container             |
+|         |                           |                      |
 |         +-------------+-------------+                      |
 |                       v                                    |
 |              Instance running                              |
-|              with one session                              |
+|              (no sessions yet)                             |
++------------------------------------------------------------+
+```
+
+Then `hjk agent` or `hjk exec` creates sessions within that instance:
+
+```
++------------------------------------------------------------+
+|              hjk agent / hjk exec                          |
+|                       |                                    |
+|                       v                                    |
+|              Create tmux session                           |
+|                       |                                    |
+|                       v                                    |
+|              Attach terminal                               |
 +------------------------------------------------------------+
 ```
 
 The session is created in "detached" mode, meaning tmux starts the session but doesn't attach your terminal. Then Headjack immediately attaches, giving the appearance of a single operation.
 
-You can also create additional sessions in an existing instance:
+You can create multiple sessions in an existing instance:
 
 ```bash
 # Create a shell session while a Claude session is running
-hjk session create my-instance --type shell
+hjk exec feat/auth
 ```
 
 This creates a second tmux session in the same container. Both sessions share the container's filesystem, network, and resources.
@@ -116,13 +129,14 @@ Headjack tracks when you last accessed each session. This enables the "most rece
 Each `hjk attach` without a session name attaches to that instance's most recently used session:
 
 ```bash
-# Create instance with claude session
-hjk run feature-a
+# Create instance and start claude session
+hjk run feat/auth
+hjk agent feat/auth claude
 
 # Later: detach (Ctrl+B, D)
 
 # Reattach to the same (MRU) session
-hjk attach feature-a
+hjk attach feat/auth
 ```
 
 ### Global MRU
@@ -131,14 +145,16 @@ Running `hjk attach` with no arguments attaches to the globally most recently us
 
 ```bash
 # Work on feature-a
-hjk run feature-a
+hjk run feat/auth
+hjk agent feat/auth claude
 # Detach
 
 # Work on feature-b
-hjk run feature-b
+hjk run feat/api
+hjk agent feat/api claude
 # Detach
 
-# Resume most recent work (feature-b)
+# Resume most recent work (feat/api)
 hjk attach
 ```
 
@@ -230,10 +246,11 @@ Sessions can be named for easier reference:
 
 ```bash
 # Auto-generated name (e.g., "happy-panda")
-hjk session create my-instance
+hjk agent feat/auth claude
 
 # Custom name
-hjk session create my-instance --name testing
+hjk agent feat/auth claude --name auth-impl
+hjk exec feat/auth --name debug-shell
 ```
 
 Names must be unique within an instance. The auto-generated names use a word list to create memorable combinations.
@@ -241,7 +258,7 @@ Names must be unique within an instance. The auto-generated names use a word lis
 Named sessions can be attached by name:
 
 ```bash
-hjk attach my-instance --session testing
+hjk attach feat/auth auth-impl
 ```
 
 ## Session State Machine

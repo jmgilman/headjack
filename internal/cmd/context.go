@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 type contextKey string
@@ -55,4 +57,10 @@ func ManagerFromContext(ctx context.Context) *instance.Manager {
 		return nil
 	}
 	return mgr
+}
+
+// LoggerFromContext retrieves the logger from context.
+// Returns a discarding logger if none is set (never returns nil).
+func LoggerFromContext(ctx context.Context) *slog.Logger {
+	return slogger.FromContext(ctx)
 }

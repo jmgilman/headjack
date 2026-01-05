@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jmgilman/headjack/internal/exec"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 type repository struct {
@@ -70,6 +72,9 @@ func (r *repository) remoteBranchExists(ctx context.Context, branch string) (boo
 }
 
 func (r *repository) CreateWorktree(ctx context.Context, path, branch string) error {
+	log := slogger.L(ctx)
+	log.Debug("creating worktree", slog.String("path", path), slog.String("branch", branch))
+
 	// Check if branch already exists
 	exists, err := r.BranchExists(ctx, branch)
 	if err != nil {
@@ -79,9 +84,11 @@ func (r *repository) CreateWorktree(ctx context.Context, path, branch string) er
 	var args []string
 	if exists {
 		// Use existing branch
+		log.Debug("using existing branch", slog.String("branch", branch))
 		args = []string{"worktree", "add", path, branch}
 	} else {
 		// Create new branch from HEAD
+		log.Debug("creating new branch from HEAD", slog.String("branch", branch))
 		args = []string{"worktree", "add", "-b", branch, path}
 	}
 
@@ -106,6 +113,9 @@ func (r *repository) CreateWorktree(ctx context.Context, path, branch string) er
 }
 
 func (r *repository) RemoveWorktree(ctx context.Context, path string) error {
+	log := slogger.L(ctx)
+	log.Debug("removing worktree", slog.String("path", path))
+
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
 		Name: "git",
 		Args: []string{"worktree", "remove", path},

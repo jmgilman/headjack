@@ -81,11 +81,7 @@ func listInstances(cmd *cobra.Command) error {
 	}
 
 	if len(instances) == 0 {
-		if all {
-			fmt.Println("No instances found")
-		} else {
-			fmt.Println("No instances found for this repository")
-		}
+		fmt.Println("No instances found")
 		return nil
 	}
 
@@ -133,7 +129,7 @@ func listSessions(cmd *cobra.Command, branch string) error {
 	}
 
 	if len(sessions) == 0 {
-		fmt.Printf("No sessions found for instance %s\n", branch)
+		fmt.Println("No sessions found")
 		return nil
 	}
 

@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/jmgilman/headjack/internal/exec"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 // containerParser handles runtime-specific JSON parsing for container inspect and list operations.
@@ -48,6 +50,9 @@ func cliError(operation string, result *exec.Result, err error) error {
 
 // Run creates and starts a new container.
 func (r *baseRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, error) {
+	log := slogger.L(ctx)
+	log.Debug("running container", slog.String("name", cfg.Name), slog.String("image", cfg.Image))
+
 	args := buildRunArgs(cfg)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
@@ -64,6 +69,7 @@ func (r *baseRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, erro
 
 	// Container ID is returned on stdout
 	containerID := strings.TrimSpace(string(result.Stdout))
+	log.Debug("container started", slog.String("id", containerID))
 
 	return &Container{
 		ID:        containerID,
@@ -76,6 +82,9 @@ func (r *baseRuntime) Run(ctx context.Context, cfg *RunConfig) (*Container, erro
 
 // Exec executes a command in a running container.
 func (r *baseRuntime) Exec(ctx context.Context, id string, cfg *ExecConfig) error {
+	log := slogger.L(ctx)
+	log.Debug("executing in container", slog.String("id", id), slog.Any("command", cfg.Command))
+
 	// Verify container exists and is running
 	container, err := r.Get(ctx, id)
 	if err != nil {
@@ -103,6 +112,9 @@ func (r *baseRuntime) Exec(ctx context.Context, id string, cfg *ExecConfig) erro
 
 // Stop stops a running container gracefully.
 func (r *baseRuntime) Stop(ctx context.Context, id string) error {
+	log := slogger.L(ctx)
+	log.Debug("stopping container", slog.String("id", id))
+
 	// Verify container exists
 	c, err := r.Get(ctx, id)
 	if err != nil {
@@ -111,6 +123,7 @@ func (r *baseRuntime) Stop(ctx context.Context, id string) error {
 
 	// No-op if already stopped
 	if c.Status == StatusStopped {
+		log.Debug("container already stopped", slog.String("id", id))
 		return nil
 	}
 
@@ -127,6 +140,9 @@ func (r *baseRuntime) Stop(ctx context.Context, id string) error {
 
 // Start starts a stopped container.
 func (r *baseRuntime) Start(ctx context.Context, id string) error {
+	log := slogger.L(ctx)
+	log.Debug("starting container", slog.String("id", id))
+
 	// Verify container exists
 	c, err := r.Get(ctx, id)
 	if err != nil {
@@ -135,6 +151,7 @@ func (r *baseRuntime) Start(ctx context.Context, id string) error {
 
 	// No-op if already running
 	if c.Status == StatusRunning {
+		log.Debug("container already running", slog.String("id", id))
 		return nil
 	}
 

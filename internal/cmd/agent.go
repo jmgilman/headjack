@@ -11,6 +11,7 @@ import (
 	"github.com/jmgilman/headjack/internal/config"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/keychain"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var agentCmd = &cobra.Command{
@@ -249,7 +250,7 @@ func runAgentCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	if flags.detached {
-		fmt.Printf("Created session %s in instance %s (detached)\n", session.Name, inst.ID)
+		slogger.L(cmd.Context()).Info("created session", "session", session.Name, "instance", inst.ID, "mode", "detached")
 		return nil
 	}
 

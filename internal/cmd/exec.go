@@ -121,7 +121,7 @@ func runExecCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	if flags.detached {
-		fmt.Printf("Created session %s in instance %s (detached)\n", session.Name, inst.ID)
+		fmt.Printf("Created session %s in %s (detached)\n", session.Name, inst.ID)
 		return nil
 	}
 

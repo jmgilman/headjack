@@ -54,10 +54,11 @@ var validate = validator.New()
 
 // Config represents the full Headjack configuration.
 type Config struct {
-	Default DefaultConfig          `mapstructure:"default" validate:"required"`
-	Agents  map[string]AgentConfig `mapstructure:"agents" validate:"dive,keys,oneof=claude gemini codex,endkeys"`
-	Storage StorageConfig          `mapstructure:"storage" validate:"required"`
-	Runtime RuntimeConfig          `mapstructure:"runtime"`
+	Default      DefaultConfig          `mapstructure:"default" validate:"required"`
+	Agents       map[string]AgentConfig `mapstructure:"agents" validate:"dive,keys,oneof=claude gemini codex,endkeys"`
+	Storage      StorageConfig          `mapstructure:"storage" validate:"required"`
+	Runtime      RuntimeConfig          `mapstructure:"runtime"`
+	Devcontainer DevcontainerConfig     `mapstructure:"devcontainer"`
 }
 
 // DefaultConfig holds default values for new instances.
@@ -82,6 +83,11 @@ type StorageConfig struct {
 type RuntimeConfig struct {
 	Name  string         `mapstructure:"name" validate:"omitempty,oneof=podman docker"`
 	Flags map[string]any `mapstructure:"flags"`
+}
+
+// DevcontainerConfig holds devcontainer CLI configuration.
+type DevcontainerConfig struct {
+	Path string `mapstructure:"path"`
 }
 
 // Validate checks the configuration for errors using struct tags.
@@ -150,6 +156,7 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("agents.codex.env", map[string]string{})
 	l.v.SetDefault("runtime.name", "docker")
 	l.v.SetDefault("runtime.flags", map[string]any{})
+	l.v.SetDefault("devcontainer.path", "")
 }
 
 // Load reads the configuration file, creating defaults if it doesn't exist.
@@ -175,6 +182,7 @@ func (l *Loader) Load() (*Config, error) {
 	cfg.Storage.Worktrees = l.expandPath(cfg.Storage.Worktrees)
 	cfg.Storage.Catalog = l.expandPath(cfg.Storage.Catalog)
 	cfg.Storage.Logs = l.expandPath(cfg.Storage.Logs)
+	cfg.Devcontainer.Path = l.expandPath(cfg.Devcontainer.Path)
 
 	return &cfg, nil
 }

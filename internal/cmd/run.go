@@ -3,13 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os/exec"
 
 	"github.com/spf13/cobra"
 
 	"github.com/jmgilman/headjack/internal/container"
 	"github.com/jmgilman/headjack/internal/devcontainer"
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/prompt"
 )
 
 var runCmd = &cobra.Command{
@@ -131,28 +131,17 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 	return inst, nil
 }
 
-// devcontainerCLI is the name of the devcontainer CLI binary.
-const devcontainerCLI = "devcontainer"
-
 // buildCreateConfig builds the instance creation config, detecting devcontainer mode if applicable.
 // Devcontainer mode is used when:
 //   - No --image flag was explicitly passed (imageExplicit is false)
 //   - A devcontainer.json exists in the repo
-//   - The devcontainer CLI is available
+//   - The devcontainer CLI is available (or can be installed)
 //
 // Returns an error if no devcontainer.json is found and no image is configured.
 func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, imageExplicit bool) (instance.CreateConfig, error) {
 	cfg := instance.CreateConfig{
 		Branch: branch,
 		Image:  image,
-	}
-
-	// Always check if devcontainer CLI is available and warn if not
-	devcontainerAvailable := isDevcontainerCLIAvailable()
-	if !devcontainerAvailable {
-		fmt.Println("Warning: devcontainer CLI not found in PATH")
-		fmt.Println("  Install with: npm install -g @devcontainers/cli")
-		fmt.Println("  See: https://github.com/devcontainers/cli")
 	}
 
 	// If image was explicitly passed, use vanilla mode
@@ -164,9 +153,21 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, image
 	hasDevcontainer := devcontainer.HasConfig(repoPath)
 
 	if hasDevcontainer {
-		if !devcontainerAvailable {
-			// Devcontainer exists but CLI not available - error
-			return cfg, errors.New("devcontainer.json found but devcontainer CLI is not installed")
+		// Resolve devcontainer CLI (may prompt for installation)
+		mgr := ManagerFromContext(cmd.Context())
+		if mgr == nil {
+			return cfg, errors.New("manager not available")
+		}
+
+		loader := LoaderFromContext(cmd.Context())
+		if loader == nil {
+			return cfg, errors.New("config loader not available")
+		}
+
+		resolver := devcontainer.NewCLIResolver(loader, prompt.New(), mgr.Executor())
+		cliPath, err := resolver.Resolve(cmd.Context())
+		if err != nil {
+			return cfg, err
 		}
 
 		// Create devcontainer runtime wrapping the underlying runtime
@@ -174,7 +175,7 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, image
 		if appCfg := ConfigFromContext(cmd.Context()); appCfg != nil && appCfg.Runtime.Name != "" {
 			runtimeName = appCfg.Runtime.Name
 		}
-		dcRuntime := createDevcontainerRuntime(cmd, runtimeName)
+		dcRuntime := createDevcontainerRuntime(cmd, runtimeName, cliPath)
 		if dcRuntime == nil {
 			return cfg, errors.New("failed to create devcontainer runtime")
 		}
@@ -196,14 +197,8 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch, image string, image
 	return cfg, nil
 }
 
-// isDevcontainerCLIAvailable checks if the devcontainer CLI is in PATH.
-func isDevcontainerCLIAvailable() bool {
-	_, err := exec.LookPath(devcontainerCLI)
-	return err == nil
-}
-
 // createDevcontainerRuntime creates a DevcontainerRuntime wrapping the appropriate underlying runtime.
-func createDevcontainerRuntime(cmd *cobra.Command, runtimeName string) container.Runtime {
+func createDevcontainerRuntime(cmd *cobra.Command, runtimeName, cliPath string) container.Runtime {
 	// Get the underlying runtime from the manager
 	mgr := ManagerFromContext(cmd.Context())
 	if mgr == nil {
@@ -224,7 +219,7 @@ func createDevcontainerRuntime(cmd *cobra.Command, runtimeName string) container
 	return devcontainer.NewRuntime(
 		mgr.Runtime(),
 		mgr.Executor(),
-		"devcontainer", // CLI path - assumes it's in PATH
+		cliPath,
 		dockerPath,
 	)
 }

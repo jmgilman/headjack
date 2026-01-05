@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmgilman/headjack/internal/auth"
 	"github.com/jmgilman/headjack/internal/keychain"
+	"github.com/jmgilman/headjack/internal/prompt"
 )
 
 var authCmd = &cobra.Command{
@@ -128,13 +129,13 @@ func runAuthFlow(provider auth.Provider) error {
 		return fmt.Errorf("initialize credential storage: %w", err)
 	}
 
-	prompter := auth.NewTerminalPrompter()
+	prompter := prompt.New()
 	info := provider.Info()
 
 	prompter.Print(fmt.Sprintf("Configure %s authentication", info.Name))
 	prompter.Print("")
 
-	choice, err := prompter.PromptChoice("Authentication method:", []string{
+	choice, err := prompter.Choice("Authentication method:", []string{
 		"Subscription",
 		"API Key",
 	})
@@ -169,7 +170,7 @@ func runAuthFlow(provider auth.Provider) error {
 // handleSubscriptionAuth handles subscription-based authentication.
 // For Claude, prompts for manual token entry.
 // For Gemini/Codex, attempts to read existing credentials from config files.
-func handleSubscriptionAuth(provider auth.Provider, prompter auth.Prompter) (auth.Credential, error) {
+func handleSubscriptionAuth(provider auth.Provider, prompter prompt.Prompter) (auth.Credential, error) {
 	// Try to auto-detect existing credentials
 	value, err := provider.CheckSubscription()
 	if err == nil {
@@ -188,7 +189,7 @@ func handleSubscriptionAuth(provider auth.Provider, prompter auth.Prompter) (aut
 	prompter.Print(err.Error())
 	prompter.Print("")
 
-	value, err = prompter.PromptSecret("Paste your credential: ")
+	value, err = prompter.Secret("Paste your credential: ")
 	if err != nil {
 		return auth.Credential{}, fmt.Errorf("read credential: %w", err)
 	}
@@ -204,13 +205,13 @@ func handleSubscriptionAuth(provider auth.Provider, prompter auth.Prompter) (aut
 }
 
 // handleAPIKeyAuth handles API key authentication.
-func handleAPIKeyAuth(provider auth.Provider, prompter auth.Prompter) (auth.Credential, error) {
+func handleAPIKeyAuth(provider auth.Provider, prompter prompt.Prompter) (auth.Credential, error) {
 	info := provider.Info()
 
 	prompter.Print(fmt.Sprintf("Enter your %s API key.", info.Name))
 	prompter.Print("")
 
-	value, err := prompter.PromptSecret("API key: ")
+	value, err := prompter.Secret("API key: ")
 	if err != nil {
 		return auth.Credential{}, fmt.Errorf("read API key: %w", err)
 	}

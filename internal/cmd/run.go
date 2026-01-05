@@ -10,6 +10,7 @@ import (
 	"github.com/jmgilman/headjack/internal/devcontainer"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/prompt"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var runCmd = &cobra.Command{
@@ -94,7 +95,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Instance %s ready for branch %s\n", inst.ID, inst.Branch)
+	slogger.L(cmd.Context()).Info("instance ready", "id", inst.ID, "branch", inst.Branch)
 	return nil
 }
 
@@ -110,7 +111,7 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 			if startErr := mgr.Start(cmd.Context(), inst.ID); startErr != nil {
 				return nil, fmt.Errorf("start stopped instance: %w", startErr)
 			}
-			fmt.Printf("Restarted instance %s for branch %s\n", inst.ID, inst.Branch)
+			slogger.L(cmd.Context()).Info("restarted instance", "id", inst.ID, "branch", inst.Branch)
 			// Refresh the instance to get updated status
 			inst, err = mgr.GetByBranch(cmd.Context(), repoPath, branch)
 			if err != nil {
@@ -135,7 +136,7 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 		return nil, fmt.Errorf("create instance: %w", err)
 	}
 
-	fmt.Printf("Created instance %s for branch %s\n", inst.ID, inst.Branch)
+	slogger.L(cmd.Context()).Info("created instance", "id", inst.ID, "branch", inst.Branch)
 	return inst, nil
 }
 
@@ -189,7 +190,7 @@ func buildCreateConfig(cmd *cobra.Command, repoPath, branch string, flags *runFl
 			return cfg, errors.New("failed to create devcontainer runtime")
 		}
 
-		fmt.Println("Detected devcontainer.json, using devcontainer mode")
+		slogger.L(cmd.Context()).Info("detected devcontainer.json, using devcontainer mode")
 
 		cfg.WorkspaceFolder = repoPath
 		cfg.Runtime = dcRuntime

@@ -11,6 +11,7 @@ import (
 	"github.com/jmgilman/headjack/internal/exec"
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var psCmd = &cobra.Command{
@@ -82,9 +83,9 @@ func listInstances(cmd *cobra.Command) error {
 
 	if len(instances) == 0 {
 		if all {
-			fmt.Println("No instances found")
+			slogger.L(cmd.Context()).Info("no instances found")
 		} else {
-			fmt.Println("No instances found for this repository")
+			slogger.L(cmd.Context()).Info("no instances found for this repository")
 		}
 		return nil
 	}
@@ -133,7 +134,7 @@ func listSessions(cmd *cobra.Command, branch string) error {
 	}
 
 	if len(sessions) == 0 {
-		fmt.Printf("No sessions found for instance %s\n", branch)
+		slogger.L(cmd.Context()).Info("no sessions found", "branch", branch)
 		return nil
 	}
 

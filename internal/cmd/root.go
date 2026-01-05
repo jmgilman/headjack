@@ -20,6 +20,7 @@ import (
 	"github.com/jmgilman/headjack/internal/git"
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/multiplexer"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 // baseDeps lists the external binaries that must always be available.
@@ -40,6 +41,9 @@ var appConfig *config.Config
 // configLoader is used for accessing agent-specific configuration.
 var configLoader *config.Loader
 
+// verbosity controls log level: 0=error, 1=info, 2+=debug.
+var verbosity int
+
 var rootCmd = &cobra.Command{
 	Use:   "headjack",
 	Short: "Spawn isolated LLM coding agents",
@@ -50,6 +54,9 @@ Each agent runs in its own VM-isolated container with a dedicated git worktree,
 enabling safe parallel development across multiple branches.`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Initialize logger first so it's available for dependency/manager errors
+		logger := slogger.New(slogger.Config{Verbosity: verbosity})
+
 		if err := checkDependencies(); err != nil {
 			return err
 		}
@@ -60,6 +67,7 @@ enabling safe parallel development across multiple branches.`,
 
 		// Store dependencies in context for subcommands
 		ctx := cmd.Context()
+		ctx = slogger.WithLogger(ctx, logger)
 		ctx = WithConfig(ctx, appConfig)
 		ctx = WithLoader(ctx, configLoader)
 		ctx = WithManager(ctx, mgr)
@@ -76,6 +84,8 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v",
+		"increase verbosity (-v for info, -vv for debug)")
 }
 
 func initConfig() {

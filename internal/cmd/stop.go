@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var stopCmd = &cobra.Command{
@@ -32,7 +34,7 @@ The worktree is preserved and the instance can be resumed later with 'hjk run'.`
 			return fmt.Errorf("stop instance: %w", err)
 		}
 
-		fmt.Printf("Stopped instance %s for branch %s\n", inst.ID, inst.Branch)
+		slogger.L(cmd.Context()).Info("stopped instance", "id", inst.ID, "branch", inst.Branch)
 		return nil
 	},
 }

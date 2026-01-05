@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/jmgilman/headjack/internal/logging"
 	"github.com/jmgilman/headjack/internal/multiplexer"
 	"github.com/jmgilman/headjack/internal/names"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 // containerNamePrefix is the prefix for all managed containers.
@@ -131,6 +133,9 @@ func (m *Manager) Executor() exec.Executor {
 
 // Create creates a new instance for the given repository and branch.
 func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig) (*Instance, error) {
+	log := slogger.L(ctx)
+	log.Debug("creating instance", slog.String("repo", repoPath), slog.String("branch", cfg.Branch))
+
 	// Open the repository
 	repo, err := m.git.Open(ctx, repoPath)
 	if err != nil {
@@ -138,6 +143,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig
 	}
 
 	repoID := repo.Identifier()
+	log.Debug("opened repository", slog.String("id", repoID), slog.String("root", repo.Root()))
 
 	// Check if instance already exists for this branch
 	_, err = m.catalog.GetByRepoBranch(ctx, repoID, cfg.Branch)
@@ -178,6 +184,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig
 	}
 
 	// Create worktree
+	log.Debug("creating worktree", slog.String("path", worktreePath), slog.String("branch", cfg.Branch))
 	if wtErr := repo.CreateWorktree(ctx, worktreePath, cfg.Branch); wtErr != nil {
 		cleanup()
 		return nil, fmt.Errorf("create worktree: %w", wtErr)
@@ -190,6 +197,7 @@ func (m *Manager) Create(ctx context.Context, repoPath string, cfg *CreateConfig
 	runCfg := m.buildRunConfig(cfg, containerName, worktreePath)
 
 	// Create container
+	log.Debug("creating container", slog.String("name", containerName), slog.String("image", cfg.Image))
 	c, err := runtime.Run(ctx, runCfg)
 	if err != nil {
 		// Cleanup worktree on container failure
@@ -350,6 +358,9 @@ func (m *Manager) List(ctx context.Context, filter ListFilter) ([]Instance, erro
 
 // Stop stops an instance's container.
 func (m *Manager) Stop(ctx context.Context, id string) error {
+	log := slogger.L(ctx)
+	log.Debug("stopping instance", slog.String("id", id))
+
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {
@@ -372,6 +383,9 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 
 // Start starts a stopped instance's container.
 func (m *Manager) Start(ctx context.Context, id string) error {
+	log := slogger.L(ctx)
+	log.Debug("starting instance", slog.String("id", id))
+
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {
@@ -384,6 +398,7 @@ func (m *Manager) Start(ctx context.Context, id string) error {
 		return errors.New("instance has no container")
 	}
 
+	log.Debug("starting container", slog.String("container", entry.ContainerID))
 	if err := m.runtime.Start(ctx, entry.ContainerID); err != nil {
 		return fmt.Errorf("start container: %w", err)
 	}
@@ -531,6 +546,9 @@ func (m *Manager) stopContainerWithRetry(ctx context.Context, containerID string
 
 // Remove removes an instance completely (container, worktree, catalog entry).
 func (m *Manager) Remove(ctx context.Context, id string) error {
+	log := slogger.L(ctx)
+	log.Debug("removing instance", slog.String("id", id))
+
 	entry, err := m.catalog.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {
@@ -539,6 +557,7 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 		return fmt.Errorf("get catalog entry: %w", err)
 	}
 
+	log.Debug("shutting down container", slog.String("container", entry.ContainerID))
 	if err := m.shutdownContainer(ctx, entry, shutdownContainerOpts{RemoveContainer: true}); err != nil {
 		return err
 	}
@@ -725,6 +744,9 @@ func resolveSessionName(sessions []catalog.Session, name string) (string, error)
 // The session is created in detached mode within the container's multiplexer.
 // If cfg.Name is empty, a unique name is auto-generated.
 func (m *Manager) CreateSession(ctx context.Context, instanceID string, cfg *CreateSessionConfig) (*Session, error) {
+	log := slogger.L(ctx)
+	log.Debug("creating session", slog.String("instance", instanceID), slog.String("type", cfg.Type))
+
 	entry, err := m.getRunningInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -966,6 +988,9 @@ func (m *Manager) ListSessions(ctx context.Context, instanceID string) ([]Sessio
 
 // KillSession terminates a session and removes it from the catalog.
 func (m *Manager) KillSession(ctx context.Context, instanceID, sessionName string) error {
+	log := slogger.L(ctx)
+	log.Debug("killing session", slog.String("instance", instanceID), slog.String("session", sessionName))
+
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {
@@ -1011,6 +1036,9 @@ func (m *Manager) KillSession(ctx context.Context, instanceID, sessionName strin
 // AttachSession attaches to an existing session, updating the last accessed timestamp.
 // This is a blocking operation that takes over the terminal.
 func (m *Manager) AttachSession(ctx context.Context, instanceID, sessionName string) error {
+	log := slogger.L(ctx)
+	log.Debug("attaching to session", slog.String("instance", instanceID), slog.String("session", sessionName))
+
 	entry, err := m.catalog.Get(ctx, instanceID)
 	if err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {

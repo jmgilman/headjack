@@ -112,6 +112,7 @@ func TestManager_Create(t *testing.T) {
 	t.Run("returns ErrAlreadyExists for duplicate branch", func(t *testing.T) {
 		repo := &gitmocks.RepositoryMock{
 			IdentifierFunc: func() string { return testRepoID },
+			RootFunc:       func() string { return testRepoPath },
 		}
 		opener := &gitmocks.OpenerMock{
 			OpenFunc: func(ctx context.Context, path string) (git.Repository, error) {

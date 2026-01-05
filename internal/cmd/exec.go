@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jmgilman/headjack/internal/instance"
+	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var execCmd = &cobra.Command{
@@ -121,7 +122,7 @@ func runExecCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	if flags.detached {
-		fmt.Printf("Created session %s in instance %s (detached)\n", session.Name, inst.ID)
+		slogger.L(cmd.Context()).Info("created session", "session", session.Name, "instance", inst.ID, "mode", "detached")
 		return nil
 	}
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jmgilman/headjack/internal/instance"
 	"github.com/jmgilman/headjack/internal/prompt"
 	"github.com/jmgilman/headjack/internal/slogger"
+	"github.com/jmgilman/headjack/internal/spinner"
 )
 
 var runCmd = &cobra.Command{
@@ -104,6 +106,8 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 // If the instance exists but is stopped, it restarts the container.
 // If imageExplicit is false and a devcontainer.json exists, devcontainer mode is used.
 func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, branch string, flags *runFlags) (*instance.Instance, error) {
+	log := slogger.L(cmd.Context())
+
 	// Try to get existing instance
 	inst, err := mgr.GetByBranch(cmd.Context(), repoPath, branch)
 	if err == nil {
@@ -112,7 +116,7 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 			if startErr := mgr.Start(cmd.Context(), inst.ID); startErr != nil {
 				return nil, fmt.Errorf("start stopped instance: %w", startErr)
 			}
-			slogger.L(cmd.Context()).Debug("restarted stopped instance", slog.String("id", inst.ID), slog.String("branch", inst.Branch))
+			log.Debug("restarted stopped instance", slog.String("id", inst.ID), slog.String("branch", inst.Branch))
 			// Refresh the instance to get updated status
 			inst, err = mgr.GetByBranch(cmd.Context(), repoPath, branch)
 			if err != nil {
@@ -131,13 +135,41 @@ func getOrCreateInstance(cmd *cobra.Command, mgr *instance.Manager, repoPath, br
 		return nil, err
 	}
 
-	// Create new instance
-	inst, err = mgr.Create(cmd.Context(), repoPath, &createCfg)
-	if err != nil {
-		return nil, fmt.Errorf("create instance: %w", err)
+	// Determine output mode from verbosity
+	// Info level is enabled when -v is passed (verbosity >= 1)
+	verbose := log.Enabled(cmd.Context(), slog.LevelInfo)
+
+	if verbose {
+		// Verbose mode: stream CLI output directly to stderr
+		createCfg.Stderr = os.Stderr
+		inst, err = mgr.Create(cmd.Context(), repoPath, &createCfg)
+		if err != nil {
+			return nil, fmt.Errorf("create instance: %w", err)
+		}
+	} else {
+		// Default mode: show ticker spinner with progress from CLI
+		spin := spinner.New(os.Stderr)
+		createCfg.Stderr = spin.Writer()
+
+		// Run creation in a goroutine while spinner displays
+		var createErr error
+		go func() {
+			inst, createErr = mgr.Create(cmd.Context(), repoPath, &createCfg)
+			spin.Stop()
+		}()
+
+		// Start blocks until Stop() is called
+		if spinErr := spin.Start(); spinErr != nil {
+			// Spinner error is non-fatal, continue if we got an instance
+			log.Debug("spinner error", slog.String("error", spinErr.Error()))
+		}
+
+		if createErr != nil {
+			return nil, fmt.Errorf("create instance: %w", createErr)
+		}
 	}
 
-	slogger.L(cmd.Context()).Debug("created new instance", slog.String("id", inst.ID), slog.String("branch", inst.Branch))
+	log.Debug("created new instance", slog.String("id", inst.ID), slog.String("branch", inst.Branch))
 	return inst, nil
 }
 

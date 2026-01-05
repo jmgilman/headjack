@@ -62,8 +62,9 @@ func (r *Runtime) Run(ctx context.Context, cfg *container.RunConfig) (*container
 	args = append(args, cfg.Flags...)
 
 	result, err := r.exec.Run(ctx, &exec.RunOptions{
-		Name: r.cliPath,
-		Args: args,
+		Name:   r.cliPath,
+		Args:   args,
+		Stderr: cfg.Stderr, // Stream stderr if writer provided (for progress output)
 	})
 	if err != nil {
 		stderr := ""

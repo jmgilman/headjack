@@ -26,7 +26,7 @@ jobs:
 
       - name: Validate devcontainer-feature.json
         run: |
-          for feature_dir in images/features/*/; do
+          for feature_dir in images/features/src/*/; do
             if [ -f "${feature_dir}devcontainer-feature.json" ]; then
               echo "Validating ${feature_dir}devcontainer-feature.json"
               jq empty "${feature_dir}devcontainer-feature.json"
@@ -35,7 +35,7 @@ jobs:
 
       - name: Lint install.sh scripts
         run: |
-          find images/features -name "*.sh" -type f -exec shellcheck {} +
+          find images/features/src -name "*.sh" -type f -exec shellcheck {} +
 
   test:
     needs: lint
@@ -58,7 +58,7 @@ jobs:
       - name: Test feature
         run: |
           devcontainer features test \
-            --features ./images/features/${{ matrix.feature }} \
+            --features ./images/features/src/${{ matrix.feature }} \
             --base-image mcr.microsoft.com/devcontainers/base:ubuntu \
             --project-folder ./images/features
 
@@ -84,7 +84,7 @@ jobs:
         uses: devcontainers/action@v1
         with:
           publish-features: true
-          base-path-to-features: ./images/features
+          base-path-to-features: ./images/features/src
           generate-docs: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -99,20 +99,6 @@ type Provider interface {
 	Load(storage Storage) (*Credential, error)
 }
 
-// Prompter abstracts user interaction for credential collection.
-//
-//go:generate go run github.com/matryer/moq@latest -pkg mocks -out mocks/prompter.go . Prompter
-type Prompter interface {
-	// Print outputs text to the user.
-	Print(message string)
-
-	// PromptSecret prompts for secret input (no echo).
-	PromptSecret(prompt string) (string, error)
-
-	// PromptChoice prompts user to select from options, returns 0-based index.
-	PromptChoice(prompt string, options []string) (int, error)
-}
-
 // StoreCredential is a helper function to store a credential in JSON format.
 func StoreCredential(storage Storage, account string, cred Credential) error {
 	data, err := json.Marshal(cred)

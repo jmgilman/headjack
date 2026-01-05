@@ -1,0 +1,52 @@
+{
+  "id": "agents",
+  "version": "1.0.0",
+  "name": "AI Coding Agents",
+  "description": "Installs AI coding agent CLIs: Claude Code, Gemini CLI, and Codex CLI",
+  "documentationURL": "https://github.com/GilmanLab/headjack/tree/master/images/features/agents",
+  "keywords": [
+    "ai",
+    "agents",
+    "claude",
+    "gemini",
+    "codex",
+    "anthropic",
+    "google",
+    "openai"
+  ],
+  "options": {
+    "claudeCode": {
+      "type": "boolean",
+      "default": true,
+      "description": "Install Claude Code CLI (@anthropic-ai/claude-code)"
+    },
+    "claudeCodeVersion": {
+      "type": "string",
+      "default": "latest",
+      "description": "Version of Claude Code to install"
+    },
+    "geminiCli": {
+      "type": "boolean",
+      "default": true,
+      "description": "Install Gemini CLI (@google/gemini-cli)"
+    },
+    "geminiCliVersion": {
+      "type": "string",
+      "default": "latest",
+      "description": "Version of Gemini CLI to install"
+    },
+    "codexCli": {
+      "type": "boolean",
+      "default": true,
+      "description": "Install Codex CLI (@openai/codex)"
+    },
+    "codexCliVersion": {
+      "type": "string",
+      "default": "latest",
+      "description": "Version of Codex CLI to install"
+    }
+  },
+  "installsAfter": [
+    "ghcr.io/devcontainers/features/node"
+  ]
+}

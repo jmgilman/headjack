@@ -1,0 +1,90 @@
+name: Features
+
+on:
+  pull_request:
+    paths:
+      - 'images/features/**'
+      - '.github/workflows/features.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'images/features/**'
+      - '.github/workflows/features.yml'
+    tags:
+      - 'features/*/v*'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Validate devcontainer-feature.json
+        run: |
+          for feature_dir in images/features/src/*/; do
+            if [ -f "${feature_dir}devcontainer-feature.json" ]; then
+              echo "Validating ${feature_dir}devcontainer-feature.json"
+              jq empty "${feature_dir}devcontainer-feature.json"
+            fi
+          done
+
+      - name: Lint install.sh scripts
+        run: |
+          find images/features/src -name "*.sh" -type f -exec shellcheck {} +
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature: [agents]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install devcontainer CLI
+        run: npm install -g @devcontainers/cli
+
+      - name: Test feature
+        run: |
+          devcontainer features test \
+            --features ${{ matrix.feature }} \
+            --base-image mcr.microsoft.com/devcontainers/base:ubuntu \
+            --project-folder ./images/features
+
+  publish:
+    needs: [lint, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/features/'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Features
+        uses: devcontainers/action@v1
+        with:
+          publish-features: true
+          base-path-to-features: ./images/features/src
+          generate-docs: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

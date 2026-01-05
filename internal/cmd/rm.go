@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/jmgilman/headjack/internal/slogger"
 )
 
 var rmCmd = &cobra.Command{
@@ -70,7 +68,7 @@ WARNING: This deletes uncommitted work in the worktree.`,
 			return fmt.Errorf("remove instance: %w", err)
 		}
 
-		slogger.L(cmd.Context()).Info("removed instance", "id", inst.ID, "branch", inst.Branch)
+		fmt.Printf("Removed instance %s for branch %s\n", inst.ID, inst.Branch)
 		return nil
 	},
 }

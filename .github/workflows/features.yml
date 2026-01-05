@@ -34,9 +34,8 @@ jobs:
           done
 
       - name: Lint install.sh scripts
-        uses: koalaman/shellcheck-action@3b8df25f1665b9e4d42bab8a72ef426e6c6e3d63 # v1.1
-        with:
-          scandir: 'images/features'
+        run: |
+          find images/features -name "*.sh" -type f -exec shellcheck {} +
 
   test:
     needs: lint
